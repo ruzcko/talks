@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S2RAIN: Satellite-to-Rainfall · AI4Sci Korea 2026</title>
+<meta name="description" content="Rainfall estimation from geostationary satellite imagery across East Asia with a conditional rectified flow. Talk by Rogelio Ruzcko Tobias at AI4Sci Korea 2026.">
+<link rel="canonical" href="https://ruzcko.com/talks/s2rain-ai4sci-2026/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="S2RAIN: Satellite-to-Rainfall">
+<meta property="og:description" content="Rainfall estimation from geostationary satellite imagery across East Asia. AI4Sci Korea 2026.">
+<meta property="og:url" content="https://ruzcko.com/talks/s2rain-ai4sci-2026/">
+<meta property="og:image" content="https://ruzcko.com/talks/s2rain-ai4sci-2026/preview.jpg">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="675">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#05080c">
+<!--
+  AI4Sci Korea 2026 talk, all 12 slides as one continuous scene. Frames in ./frames are built by make_frames.py.
+-->
+<style>
+  :root {
+    --bg: #05080c; --ocean: #0b121a; --land: #16212c; --coast: #3a4c5e; --text: #e9eff5; --muted: #8fa1b3;
+    --peak: #f59e0b; --kr: #ef4444; --edge: #ff7a6b; --hk: #38bdf8; --sevir: #a78bfa; --meteo: #34d399;
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--text); }
+  #frame { position: fixed; inset: 0; overflow: hidden; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 50% 50%;
+    background: var(--ocean); overflow: hidden; cursor: pointer; }
+  #stage > svg, #stage > canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .land { fill: var(--land); stroke: var(--coast); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .fp { fill: currentColor; fill-opacity: .07; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+  .px { image-rendering: pixelated; }
+  #peak { fill: none; stroke: var(--peak); stroke-width: 3.5; vector-effect: non-scaling-stroke; }
+  #edge { fill: none; stroke: var(--edge); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .shade { position: absolute; left: 0; right: 0; pointer-events: none; }
+  .shade.top { top: 0; height: 250px; background: linear-gradient(var(--bg) 10%, transparent); opacity: .9; }
+  .shade.left { top: 0; bottom: 0; left: 0; width: 900px; background: linear-gradient(90deg, var(--bg) 30%, transparent); opacity: 0; }
+  .fade { transition: opacity .5s, transform .5s; }
+  #kicker { position: absolute; left: 96px; top: 70px; font-size: 24px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  #headline { position: absolute; left: 96px; top: 104px; font-size: 68px; font-weight: 650; letter-spacing: -.01em; }
+  .out { opacity: 0; transform: translateY(10px); }
+  #caption { position: absolute; left: 96px; bottom: 110px; max-width: 760px; font-size: 36px; line-height: 1.3; }
+  #caption.take { font-size: 46px; font-weight: 600; }
+  #stat { position: absolute; left: 96px; top: 330px; transition: opacity .7s .5s, transform .7s .5s; }
+  #stat b { display: block; font-size: 150px; line-height: 1; font-weight: 700; color: var(--peak); }
+  #stat span { display: block; font-size: 28px; color: var(--muted); max-width: 440px; }
+  #foot { position: absolute; left: 96px; bottom: 40px; max-width: 1000px; font-size: 18px; line-height: 1.4; white-space: pre-line; color: var(--muted); opacity: 0; transition: opacity .5s; }
+  #foot a, .bookend a { color: inherit; text-decoration: underline; text-decoration-color: #5d6e7f; text-underline-offset: 3px; pointer-events: auto; }
+  #foot a:hover, .bookend a:hover { color: var(--text); }
+  #foot.in { opacity: 1; }
+  #dots { position: absolute; right: 96px; bottom: 44px; display: flex; gap: 6px; }
+  #dots i { width: 8px; height: 8px; border-radius: 50%; background: #2a3947; transition: background .3s; }
+  #dots i.on { background: var(--text); }
+  #dots i.gap { margin-left: 10px; }
+  #clock { position: absolute; left: 96px; top: 222px; font-size: 22px; color: var(--muted);
+    font-variant-numeric: tabular-nums; transition: opacity .6s; }
+  #clock .bar { display: flex; margin-top: 10px; }
+  #clock .bar i { width: 20px; height: 10px; }
+  #clock .ticks { position: relative; height: 18px; font-size: 15px; margin-top: 4px; }
+  #clock .ticks span { position: absolute; transform: translateX(-50%); }
+  #clock .note { font-size: 15px; margin-top: 8px; color: #6f8193; }
+  .lbl { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; font-size: 22px;
+    line-height: 1.25; text-shadow: 0 1px 6px #000, 0 0 2px #000; opacity: 0; }
+  .lbl b { display: block; font-weight: 650; }
+  .lbl span { color: var(--muted); font-size: 19px; }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 28px; }
+  .instant, .instant * { transition: none !important; }
+  /* slide 4: chain */
+  #chain { position: absolute; inset: 0; pointer-events: none; }
+  .node { position: absolute; top: 400px; width: 230px; height: 196px; box-sizing: border-box; padding: 22px 20px;
+    border: 2px solid #2a3947; border-radius: 18px; background: rgba(11,18,26,.85); color: var(--muted);
+    opacity: 0; transform: translateY(16px); transition: opacity .6s, transform .6s, border-color .6s, color .6s, box-shadow .6s; }
+  .node.in { opacity: 1; transform: none; }
+  .node.lit { border-color: var(--peak); color: var(--text); box-shadow: 0 0 40px rgba(245,158,11,.25); }
+  .node svg { width: 52px; height: 52px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .node b { display: block; font-size: 25px; margin-top: 12px; font-weight: 650; }
+  .node span { display: block; font-size: 17px; margin-top: 6px; color: var(--muted); }
+  .node i { position: absolute; top: -36px; left: 4px; font-style: normal; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: #5d6e7f; }
+  .node.lit i { color: var(--peak); }
+  .arrow { position: absolute; top: 497px; height: 3px; width: 0; opacity: 0; background: #3a4c5e; transition: width .5s, opacity .2s; }
+  .arrow.in { width: 24px; opacity: 1; }
+  .goal { position: absolute; left: 780px; top: 640px; width: 1025px; box-sizing: border-box; padding: 18px; text-align: center; font-size: 24px;
+    border: 2px dashed #3a4c5e; border-radius: 14px; color: var(--muted); opacity: 0; transform: translateY(14px); transition: opacity .6s, transform .6s, border-color .6s, color .6s; }
+  .goal.in { opacity: 1; transform: none; }
+  .goal.lit { border-color: var(--peak); color: var(--text); }
+  .arrow::after { content: ''; position: absolute; right: -2px; top: -6px; border: 7px solid transparent; border-left: 10px solid #3a4c5e; border-right: 0; }
+  /* slide 5: input deck */
+  #deck { position: absolute; inset: 0; perspective: none;   /* orthographic: the isometric angle stays the same wherever the stack moves */ pointer-events: none; opacity: 0; transition: opacity .6s; }
+  #deckInner { position: absolute; left: 0; top: 0; width: 512px; height: 512px; transform-style: preserve-3d;
+    transform-origin: 50% 50%; transition: transform 1.8s cubic-bezier(.65,0,.35,1); }
+  .card { position: absolute; left: 0; top: 0; width: 512px; height: 512px; background-size: cover; transform-origin: 0 0;
+    outline: 1px solid rgba(255,255,255,.18); box-shadow: 0 0 30px rgba(0,0,0,.45); }
+  .rlab { position: absolute; left: 0; top: 0; width: 240px; font-size: 24px; font-weight: 650; opacity: 0;
+    transition: transform 1.3s cubic-bezier(.65,0,.35,1), opacity .6s; }
+  .rlab span { display: block; font-size: 17px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+  #legend { position: absolute; left: 96px; top: 435px; opacity: 0; transition: opacity .6s; font-size: 22px; line-height: 1.9; }
+  #legend div { display: flex; align-items: center; gap: 12px; }
+  #legend i { width: 18px; height: 18px; border-radius: 4px; }
+  #legend span { color: var(--muted); font-size: 18px; }
+  #target, #model { position: absolute; opacity: 0; transform: translateX(30px); transition: opacity .7s 1.2s, transform .7s 1.2s, left 1.4s cubic-bezier(.65,0,.35,1), top 1.4s cubic-bezier(.65,0,.35,1), width 1.4s cubic-bezier(.65,0,.35,1), height 1.4s cubic-bezier(.65,0,.35,1); }
+  #model { transition: opacity .8s .9s, transform .8s .9s; }
+  #model.in { opacity: 1; transform: none; }
+  #vs { position: absolute; font-size: 22px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); opacity: 0; transition: opacity .6s 1.2s; transform: translate(-50%, -50%); }
+  #target img, #model img { width: 100%; height: 100%; display: block; outline: 1px solid rgba(255,255,255,.25); }
+  #target .tl, #model .tl { position: absolute; left: 0; bottom: 100%; margin-bottom: 12px; white-space: nowrap; }
+  #target b, #model b { display: block; font-size: 30px; color: var(--text); }
+  #target span, #model span { font-size: 20px; color: var(--muted); }
+  #rf { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; transition: opacity .6s; }
+  #rfui { position: absolute; right: 0; bottom: 100%; margin-bottom: 14px; text-align: right; opacity: 0; transition: opacity .6s; }
+  #rfui .count { font-size: 18px; color: var(--muted); color: var(--text); font-variant-numeric: tabular-nums; }
+  #rfui .ticks { display: flex; gap: 2px; margin-top: 6px; }
+  #rfui .ticks i { width: 3px; height: 12px; border-radius: 2px; background: rgba(255,255,255,.18); transition: background .15s; }
+  #rfui .ticks i.on { background: var(--peak); }
+  #tag { position: absolute; right: 18px; bottom: 20px; font-size: 16px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid #3a4c5e; border-radius: 6px; padding: 4px 10px; opacity: 0; transition: opacity .6s; background: rgba(5,8,12,.6); }
+  #flowLab { position: absolute; left: 540px; top: 494px; width: 46px; text-align: center; font-size: 30px; font-style: italic;
+    font-family: "Cambria Math", "STIX Two Math", Georgia, serif; color: var(--peak); opacity: 0; transition: opacity .6s; }
+  #target span { font-size: 20px; color: var(--muted); }
+  #target.in { opacity: 1; transform: none; }
+  #flow { position: absolute; left: 775px; top: 538px; height: 3px; width: 0; opacity: 0; background: var(--peak); transition: width .5s 1.5s, opacity .2s 1.5s; }
+  #flow.in { width: var(--fw, 80px); opacity: 1; }
+  #flow { transition: width .5s 1.5s, opacity .2s 1.5s, left 1.4s cubic-bezier(.65,0,.35,1); }
+  #flow::after { content: ''; position: absolute; right: -2px; top: -6px; border: 7px solid transparent; border-left: 11px solid var(--peak); border-right: 0; }
+  /* slide 6: generic velocity-network loop */
+  #vnet { position: absolute; left: 480px; top: 385px; width: 310px; height: 310px; box-sizing: border-box; padding: 20px 22px;
+    border: 2px solid #3a4c5e; border-radius: 18px; background: rgba(11,18,26,.9); opacity: 0; transition: opacity .7s .7s, border-color .12s, box-shadow .12s; }
+  #vnet.in { opacity: 1; }
+  #vnet.pulse { border-color: var(--peak); box-shadow: 0 0 34px rgba(245,158,11,.35); }
+  #vnet .t1 { font-size: 22px; font-weight: 650; }
+  #vnet .t2 { font-size: 26px; margin-top: 6px; color: var(--peak); font-family: "Cambria Math", "STIX Two Math", Georgia, serif; }
+  #vnet .t3 { font-size: 19px; margin-top: 10px; color: var(--muted); font-family: "Cambria Math", "STIX Two Math", Georgia, serif; }
+  #vnet svg { display: block; margin-top: 12px; }
+  #vnet .cap { font-size: 14px; color: #6f8193; margin-top: 4px; }
+  #loop { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; opacity: 0; transition: opacity .7s .9s; }
+  #loop.in { opacity: 1; }
+  #loop path { fill: none; stroke: #3a4c5e; stroke-width: 3; transition: stroke .12s; }
+  #loop.pulse path { stroke: var(--peak); }
+  #loop text { font-size: 20px; fill: var(--muted); font-family: "Cambria Math", "STIX Two Math", Georgia, serif; }
+  /* slide 7: configurations and metrics */
+  .card { transition: transform 1.3s cubic-bezier(.65,0,.35,1), opacity .6s, filter .7s; }
+  .card.zero { filter: saturate(.15) brightness(.6); opacity: .35 !important; }
+  #legend div { transition: opacity .6s; }
+  #legend div.zero { opacity: .3; }
+  #configs { position: absolute; left: 1330px; top: 250px; width: 470px; opacity: 0; transition: opacity .6s .6s; }
+  #configs.in { opacity: 1; }
+  .cfg { border: 2px solid #2a3947; border-radius: 14px; padding: 16px 20px; margin-bottom: 14px; color: var(--muted);
+    transition: border-color .5s, color .5s, box-shadow .5s; background: rgba(11,18,26,.7); }
+  .cfg b { display: block; font-size: 28px; font-weight: 650; }
+  .cfg span { display: block; font-size: 18px; margin-top: 4px; }
+  .cfg.on { border-color: var(--peak); color: var(--text); box-shadow: 0 0 30px rgba(245,158,11,.2); }
+  .cfg.on span { color: var(--muted); }
+  #metrics { position: absolute; left: 96px; top: 745px; width: 1728px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    opacity: 0; transform: translateY(12px); transition: opacity .6s, transform .6s; }
+  #metrics.in { opacity: 1; transform: none; }
+  #metrics div { border: 2px solid #3a4c5e; border-radius: 14px; padding: 16px 22px; background: rgba(11,18,26,.85); }
+  #metrics b { display: block; font-size: 34px; color: var(--peak); }
+  #metrics span { font-size: 20px; color: var(--muted); }
+  /* slide 8: qualitative row */
+  .qp { position: absolute; top: 230px; width: 380px; height: 380px; overflow: hidden; outline: 1px solid rgba(255,255,255,.25);
+    opacity: 0; transform: translateY(24px); transition: opacity .7s, transform .7s, left 1.2s, top 1.2s, width 1.2s, height 1.2s; }
+  .qp.in { opacity: 1; transform: none; }
+  .qz { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; transition: transform 1.8s cubic-bezier(.65,0,.35,1); }
+  .qz img, .qz canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .qz canvas { image-rendering: pixelated; }
+  .qtag { position: absolute; right: 12px; bottom: 12px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    border: 1px solid #3a4c5e; border-radius: 6px; padding: 3px 8px; background: rgba(5,8,12,.65); }
+  .qlab { position: absolute; top: 624px; width: 380px; font-size: 26px; font-weight: 650; opacity: 0; transition: opacity .7s .2s, left 1.2s, top 1.2s; }
+  .qlab span { display: block; font-size: 18px; font-weight: 400; color: var(--muted); }
+  .qlab.in { opacity: 1; }
+  .qlab .dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; margin-right: 10px; vertical-align: 2px; }
+  #qbox { position: absolute; border: 2px solid var(--text); border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.5); opacity: 0; transition: opacity .6s .9s; }
+  #qbox.in { opacity: 1; }
+  .mini { position: absolute; width: 0; height: 0; opacity: 0; transition: opacity .7s .3s; }
+  .mini.in { opacity: 1; }
+  .mini .mi { position: absolute; left: -256px; top: -256px; width: 512px; height: 512px; transform-style: preserve-3d;
+    transform: scale3d(.22, .22, .22) rotateX(56deg) rotateZ(-40deg); }
+  .mini .card { transition: none; }
+  #rtime { position: absolute; right: 140px; top: 150px; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .6s; }
+  #rtime.in { opacity: 1; }
+  /* slide 9: score columns under each map */
+  .ccol { position: absolute; top: 566px; width: 250px; transition: opacity .5s; }
+  .crow { position: relative; height: 64px; }
+  .cname { position: absolute; right: 0; top: 8px; font-size: 26px; font-weight: 650; color: var(--text); text-align: right; opacity: 0; transition: opacity .6s; }
+  .cname span { display: block; font-size: 15px; font-weight: 400; color: var(--muted); }
+  .cbar { position: absolute; left: 0; top: 14px; height: 30px; width: 0; border-radius: 4px; transition: width 1s cubic-bezier(.65,0,.35,1); }
+  .cval { position: absolute; top: 15px; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; left: 0; opacity: 0; transition: opacity .5s .7s, left 1s cubic-bezier(.65,0,.35,1); }
+  .cval em { font-style: normal; font-size: 19px; color: #ff8f7a; }
+  .ccol.in .cval, .ccol.in .cname { opacity: 1; }
+  .caxis { position: absolute; top: 566px; height: 192px; border-left: 1px dashed #2a3947; opacity: 0; transition: opacity .6s; }
+  .caxis.in { opacity: 1; }
+  /* slide 10: scores by threshold */
+  #thr { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; opacity: 0; transition: opacity .6s; }
+  #thr.in { opacity: 1; }
+  #thr .grid { stroke: #1c2733; stroke-width: 1; }
+  #thr .axis { stroke: #3a4c5e; stroke-width: 1.5; }
+  #thr text { fill: var(--muted); font-size: 20px; font-family: inherit; }
+  #thr .ttl { fill: var(--text); font-size: 30px; font-weight: 650; }
+  #thr .ln { fill: none; stroke-width: 4; stroke-linejoin: round; transition: stroke-dashoffset 1.3s cubic-bezier(.65,0,.35,1); }
+  #thr .pt, #thr .end, #thr .call { opacity: 0; transition: opacity .5s 1s; }
+  #thr .on .pt, #thr .on .end, #thr .call.on { opacity: 1; }
+  #thr .end { font-size: 22px; font-weight: 650; }
+  #thr g[class^="cfg"] { transition: opacity .6s .9s; }
+  #thr.best .cfg1, #thr.best .cfg2 { opacity: .3; }
+  #thr.best .cfg0 .ln { filter: drop-shadow(0 0 10px rgba(245,158,11,.8)); }
+  #thr .call text { fill: var(--text); font-size: 21px; }
+  #thr .call line { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  #peakLab { position: absolute; left: 0; top: 0; font-size: 26px; font-weight: 650; color: var(--peak); opacity: 0; pointer-events: none; white-space: nowrap; }
+  #caption .pk { color: var(--peak); font-weight: 700; }
+  #peakLab span { font-weight: 400; color: var(--muted); margin-left: 8px; }
+  /* slide 11: takeaways */
+  .node.done { border-color: #34d399; color: var(--text); box-shadow: 0 0 34px rgba(52,211,153,.2); }
+  .node.done i { color: #34d399; }
+  .node.ongoing { border-color: #8fa1b3; color: var(--text); }
+  .node.ongoing i { color: var(--text); }
+  #takeaways { position: absolute; left: 96px; top: 280px; width: 640px; }
+  #takeaways div { position: relative; padding-left: 34px; margin-bottom: 34px; font-size: 32px; line-height: 1.3; color: var(--text); opacity: 0; transform: translateY(12px); transition: opacity .6s, transform .6s; }
+  #takeaways div::before { content: ''; position: absolute; left: 0; top: .5em; width: 12px; height: 12px; border-radius: 50%; background: var(--peak); }
+  #takeaways div.in { opacity: 1; transform: none; }
+  /* title and closing slides */
+  #wv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; transition: opacity 1.2s; }
+  #wv.in { opacity: .55; }
+  .bookend { position: absolute; inset: 0; opacity: 0; transition: opacity .9s; pointer-events: none;
+    background: linear-gradient(90deg, rgba(5,8,12,.94) 0%, rgba(5,8,12,.82) 55%, rgba(5,8,12,.35) 100%); }
+  .bookend.in { opacity: 1; }
+  .bookend .conf { position: absolute; left: 120px; top: 250px; font-size: 24px; letter-spacing: .16em; text-transform: uppercase; color: var(--peak); }
+  .bookend h1 { position: absolute; left: 120px; top: 300px; width: 1280px; margin: 0; font-size: 76px; line-height: 1.08; font-weight: 700; letter-spacing: -.01em; }
+  .bookend .presenter { position: absolute; left: 120px; font-size: 40px; font-weight: 650; }
+  .bookend .authors { position: absolute; left: 120px; font-size: 28px; color: var(--muted); }
+  .bookend .affil { position: absolute; left: 120px; top: 666px; font-size: 22px; color: var(--muted); }
+  .bookend sup { font-size: .55em; margin-left: 2px; }
+  .bookend h1 .acc { color: var(--peak); }
+  #titleSlide .presenter { top: 508px; }
+  #titleSlide .authors { top: 566px; }
+  #titleSlide .affil { top: 612px; }
+  #titleSlide .email { top: 660px; }
+  .bookend h1 small { display: block; margin-top: 18px; font-size: 40px; font-weight: 500; line-height: 1.2; color: var(--muted); letter-spacing: 0; }
+  .bookend .email { position: absolute; left: 120px; top: 708px; font-size: 22px; color: var(--text); }
+  .bookend .ph { display: inline-block; border: 1px dashed #5d6e7f; border-radius: 6px; padding: 2px 10px; color: var(--muted); font-size: .8em; }
+  .bookend .logos { position: absolute; left: 120px; bottom: 96px; display: flex; align-items: center; gap: 40px; }
+  .bookend .logos img { height: 64px; }
+  .bookend .logos img.unist { height: 64px; }   /* the UNIST wordmark in white (the official file is navy) */
+  .bookend .logos .dl { display: flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 650; }
+  .bookend .logos .slot { width: 170px; height: 64px; border: 1px dashed #5d6e7f; border-radius: 8px; display: grid; place-items: center; color: var(--muted); font-size: 16px; }
+  #endSlide h1 { top: 280px; font-size: 110px; }
+  #endSlide .contact { position: absolute; left: 120px; top: 450px; font-size: 34px; }
+  #endSlide .contact span { display: block; font-size: 22px; color: var(--muted); margin-bottom: 8px; }
+  #endSlide .qr { position: absolute; right: 180px; top: 250px; width: 400px; padding: 18px; box-sizing: border-box; border-radius: 16px;
+    background: #fff; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  #endSlide .qr img { display: block; width: 364px; height: 364px; image-rendering: pixelated; }
+  #endSlide a.qr { text-decoration: none; }
+  #endSlide .qr span { display: block; margin-top: 6px; font-size: 22px; font-weight: 650; color: #0b121a; }
+  #endSlide .presenter { top: 590px; }
+  #endSlide .authors { top: 648px; }
+  #endSlide .affil { top: 694px; }
+  body.blackout #stage { visibility: hidden; }
+  #hint { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); font: 15px system-ui, sans-serif;
+    color: var(--muted); z-index: 10; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .6s; }
+  #hint.in { opacity: 1; }
+  #hint .rot { display: none; }
+  @media (orientation: portrait) and (max-width: 700px) { #hint { white-space: normal; width: 80vw; text-align: center; } #hint .rot { display: inline; } }
+  /* web navigation: shown on mouse movement or touch, hidden when idle and in full screen */
+  #nav { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 4px;
+    padding: 4px; border: 1px solid #2a3947; border-radius: 999px; background: rgba(5,8,12,.78);
+    font: 14px system-ui, sans-serif; color: var(--muted); opacity: 0; transition: opacity .4s; pointer-events: none; }
+  #nav.in { opacity: 1; pointer-events: auto; }
+  #nav button { width: 38px; height: 38px; border: 0; border-radius: 50%; background: none; color: var(--text); font: inherit; font-size: 20px; cursor: pointer; }
+  #nav button:hover, #nav button:focus-visible { background: #1c2733; outline: none; }
+  #nav button:disabled { opacity: .3; cursor: default; background: none; }
+  #nav #fs { font-size: 17px; }
+  #navcount { min-width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
+  @media (max-height: 500px) { #nav { bottom: 6px; padding: 2px; font-size: 12px; background: rgba(5,8,12,.6); } #nav button { width: 30px; height: 30px; font-size: 17px; } #navcount { min-width: 78px; } }
+</style>
+</head>
+<body>
+<div id="hint">Click, tap, or use the arrow keys to move through the slides<span class="rot"><br>Turn your phone sideways for a larger view</span></div>
+<div id="nav" aria-label="Slide navigation"><button id="prev" aria-label="Previous">‹</button><span id="navcount"></span><button id="nextBtn" aria-label="Next">›</button><button id="fs" aria-label="Full screen">⛶</button></div>
+<div id="frame"><div id="stage">
+  <svg id="base" class="cam" preserveAspectRatio="none">
+    <g id="lineup"></g>
+    <g id="ea"><image href="frames/land_ea.webp" x="-2560" y="-2560" width="5120" height="5120" preserveAspectRatio="none"/></g>
+  </svg>
+  <canvas id="fx" width="1920" height="1080"></canvas>
+  <svg id="map" class="cam" preserveAspectRatio="none">
+    <defs>
+      <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="14" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <mask id="outside" maskUnits="userSpaceOnUse" x="-40000" y="-40000" width="80000" height="80000">
+        <rect x="-40000" y="-40000" width="80000" height="80000" fill="#fff"/>
+        <g id="maskRings" fill="#000"></g>
+      </mask>
+    </defs>
+    <rect id="dim" mask="url(#outside)" x="-40000" y="-40000" width="80000" height="80000" fill="#05080c"/>
+    <path id="edge" filter="url(#glow)"/>
+    <rect id="peak" x="-2560" y="-2560" width="5120" height="5120" pathLength="1" stroke-dasharray="1"/>
+  </svg>
+  <canvas id="wv" width="1920" height="1080"></canvas>
+  <div class="shade top"></div>
+  <div class="shade left" id="leftShade"></div>
+  <div id="hud"></div>
+  <div id="kicker" class="fade"></div>
+  <div id="headline" class="fade"></div>
+  <div id="peakLab">PEAK* <span>East Asia</span></div>
+  <div id="stat" class="out"><b>~40×</b><span>The area of Korea’s radar coverage</span></div>
+  <div id="caption" class="fade out"></div>
+  <div id="clock" style="opacity:0"><div id="time"></div>
+    <div class="bar" id="cbar"></div>
+    <div class="ticks" id="cticks"></div>
+    <div class="note" id="cnote"></div>
+  </div>
+  <div id="chain">
+    <div class="node" id="n1" style="left:780px"><i>Built</i>
+      <svg viewBox="0 0 48 48"><ellipse cx="24" cy="11" rx="14" ry="5"/><path d="M10 11v26c0 3 6 5 14 5s14-2 14-5V11M10 24c0 3 6 5 14 5s14-2 14-5"/></svg>
+      <b>PEAK* dataset</b><span>Satellite, radar, gauges, terrain</span></div>
+    <div class="arrow" id="a1" style="left:1014px"></div>
+    <div class="node" id="n2" style="left:1045px"><i>This presentation</i>
+      <svg viewBox="0 0 48 48"><rect x="18" y="17" width="12" height="12" rx="2"/><rect x="3" y="19" width="12" height="8"/><rect x="33" y="19" width="12" height="8"/><path d="M15 23h3M30 23h3M24 29v5M18 40a8 8 0 0 1 12 0"/></svg>
+      <b>Rainfall retrieval</b><span>Satellite imagery to rainfall</span></div>
+    <div class="arrow" id="a2" style="left:1279px"></div>
+    <div class="node" id="n3" style="left:1310px"><i>In development</i>
+      <svg viewBox="0 0 48 48"><path d="M13 30h19a8 8 0 0 0 0-16 11 11 0 0 0-21 3 7 7 0 0 0 2 13z"/><path d="M26 39h16m-5-5 5 5-5 5"/></svg>
+      <b>Nowcasting</b><span>Rainfall hours ahead</span></div>
+    <div class="arrow" id="a3" style="left:1544px"></div>
+    <div class="node" id="n4" style="left:1575px"><i>In development</i>
+      <svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="3"/><path d="M6 24h36M24 6v36M15 6v36M33 6v36M6 15h36M6 33h36" stroke-width="1.2"/></svg>
+      <b>Downscaling</b><span>Sharper local detail</span></div>
+    <div class="goal" id="goal">S2RAIN: High-resolution rainfall maps across East Asia</div>
+  </div>
+  <div id="deck"><div id="deckInner"></div></div>
+  <div id="rowLabels"></div>
+  <div id="legend"></div>
+  <div id="flow"></div>
+  <div id="target"><img src="frames/card_imerg.webp" alt=""><div class="tl"><b>IMERG target</b></div></div>
+  <div id="model"><img src="frames/card_base.webp" alt=""><canvas id="rf" width="512" height="512"></canvas>
+    <div class="tl"><b>Model prediction</b></div>
+    <div id="tag">Placeholder</div>
+    <div id="rfui"><div class="count" id="rfcount">Step 0 of 31</div><div class="ticks" id="rfticks"></div></div></div>
+  <div id="vnet"><div class="t1">Neural network</div><div class="t2">One small step</div>
+    <div class="t3">From noise toward rainfall, guided by the satellite inputs</div>
+    <svg id="paths" width="262" height="92" viewBox="0 0 262 92"></svg>
+    <div class="cap">Straight paths from noise to rainfall</div></div>
+  <svg id="loop" viewBox="0 0 1920 1080">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#3a4c5e" stroke="none"/></marker></defs>
+    <path d="M790 540 H850" marker-end="url(#ah)"/>
+    <path d="M1080 762 C1080 840, 635 840, 635 705" marker-end="url(#ah)"/>
+    <text x="838" y="858">Repeat</text>
+  </svg>
+  <div id="vs">vs</div>
+  <div id="flowLab">c</div>
+  <div id="configs">
+    <div class="cfg"><b>All variables</b><span>Every satellite input, plus terrain</span></div>
+    <div class="cfg"><b>Without terrain</b><span>Terrain switched off</span></div>
+    <div class="cfg"><b>Infrared only</b><span>A single infrared channel</span></div>
+  </div>
+  <div id="metrics">
+    <div><b>CSI</b><span>Event detection</span></div>
+    <div><b>FSS</b><span>Spatial agreement</span></div>
+    <div><b>SSIM</b><span>Spatial structure</span></div>
+  </div>
+  <div id="qrow"></div>
+  <div id="rtime"></div>
+  <div id="takeaways">
+    <div>Geostationary satellites reach beyond regional radar limits.</div>
+    <div>Multimodal inputs improve satellite rainfall estimation, a promising direction for nowcasting.</div>
+    <div>A large-scale dataset across East Asia sets up what comes next: nowcasting and downscaling.</div>
+  </div>
+  <svg id="thr" viewBox="0 0 1920 1080"></svg>
+  <div class="bookend" id="titleSlide">
+    <div class="conf">AI4Sci Korea 2026 · Seoul</div>
+    <h1><span class="acc">S2RAIN:</span> Satellite-to-Rainfall<small>Hybrid Generative Modeling for Precipitation Nowcasting</small></h1>
+    <div class="presenter">Rogelio Ruzcko Tobias<sup>1,2</sup></div>
+    <div class="authors">Minki Choo<sup>2</sup>, Jungho Im<sup>2</sup>, Yeji Choi<sup>1</sup></div>
+    <div class="affil"><sup>1</sup>DI Lab, Inc. · <sup>2</sup>Ulsan National Institute of Science and Technology (UNIST)</div>
+    <div class="email">ruzcko@dilab.kr</div>
+    <div class="logos"><div class="dl"><img src="assets/dilab-mark-white.webp" alt="DI Lab">DI Lab</div><img class="unist" src="assets/unist-wordmark-white.png" alt="UNIST"></div>
+  </div>
+  <div class="bookend" id="endSlide">
+    <div class="conf">AI4Sci Korea 2026</div>
+    <h1>Thank you</h1>
+    <div class="contact"><span>Contact</span><a href="mailto:ruzcko@dilab.kr">ruzcko@dilab.kr</a></div>
+    <a class="qr" href="https://ruzcko.com/" target="_blank" rel="noopener"><img src="assets/qr-ruzcko.png" alt="QR code for ruzcko.com"><span>ruzcko.com</span></a>
+    <div class="presenter">Rogelio Ruzcko Tobias<sup>1,2</sup></div>
+    <div class="authors">Minki Choo<sup>2</sup>, Jungho Im<sup>2</sup>, Yeji Choi<sup>1</sup></div>
+    <div class="affil"><sup>1</sup>DI Lab, Inc. · <sup>2</sup>Ulsan National Institute of Science and Technology (UNIST)</div>
+    <div class="logos"><div class="dl"><img src="assets/dilab-mark-white.webp" alt="DI Lab">DI Lab</div><img class="unist" src="assets/unist-wordmark-white.png" alt="UNIST"></div>
+  </div>
+  <div id="foot"></div>
+  <div id="dots"></div>
+  <div id="loading">Loading…</div>
+</div></div>
+
+<script>
+const W = 1920, H = 1080, R = 6371;
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), hud = $('#hud');
+// the offline bundle defines window.ASSETS (file path -> data URL); served from a folder, files load by path
+const ASSETS = window.ASSETS || {}, asset = p => ASSETS[p] || p;
+function fitStage() { stage.style.transform = `translate(-50%, -50%) scale(${Math.min(innerWidth / W, innerHeight / H)})`; }
+addEventListener('resize', fitStage); fitStage();
+
+// PEAK LCC (GK2A, WGS84, lat_1 30, lat_2 60, lat_0 38, lon_0 126) in km, SVG y-down
+const LCC = (() => {
+  const a = 6378137, f = 1 / 298.257223563, e = Math.sqrt(2 * f - f * f), r = Math.PI / 180;
+  const m = p => Math.cos(p) / Math.sqrt(1 - e * e * Math.sin(p) ** 2);
+  const t = p => Math.tan(Math.PI / 4 - p / 2) / Math.pow((1 - e * Math.sin(p)) / (1 + e * Math.sin(p)), e / 2);
+  const p1 = 30 * r, p2 = 60 * r, p0 = 38 * r, l0 = 126 * r;
+  const n = (Math.log(m(p1)) - Math.log(m(p2))) / (Math.log(t(p1)) - Math.log(t(p2)));
+  const F = m(p1) / (n * Math.pow(t(p1), n)), rho = p => a * F * Math.pow(t(p), n), r0 = rho(p0);
+  return (lon, lat) => { const q = rho(lat * r), th = n * (lon * r - l0); return [q * Math.sin(th) / 1000, -(r0 - q * Math.cos(th)) / 1000]; };
+})();
+const EA = { x: 0, y: 0, s: 5120 };
+const KE = { x: 79.5, y: 246, s: 1024 };   // ke_roi_gk2a_lcc_2km_v2 centre, not drawn
+
+// Korean radar coverage: the KE-ROI static mask from the talk exports (set up in buildRadar)
+let RB = { x0: 0, x1: 0, y0: 0, y1: 0 }, RADAR = null;
+function buildRadar() {
+  RADAR = meta.ke; const [x0, y0, x1, y1] = RADAR.bbox; RB = { x0, y0, x1, y1 };
+  const NS = 'http://www.w3.org/2000/svg', img = (href, parent) => { const e = document.createElementNS(NS, 'image');
+    for (const [k, v] of Object.entries({ href, x: RADAR.x0, y: RADAR.y0, width: RADAR.size, height: RADAR.size, preserveAspectRatio: 'none' })) e.setAttribute(k, v);
+    parent.appendChild(e); };
+  img(asset('frames/ke_outside.webp'), $('#maskRings'));   // white beyond the radar coverage, so the dim layer shows only there
+  img(asset('frames/land_ke.webp'), $('#ea'));             // 2 km basemap over Korea for the zoom
+  $('#edge').setAttribute('d', RADAR.edge);
+}
+
+// ---------- state and tweens ----------
+const cam = { x: 0, y: 0, w: 10000 };
+const st = { ea: 0, ir: 0, imIn: 0, imOut: 0, dim: 0, edge: 0, peak: 0, lineup: 1, shade: 0, map: 1 };
+const anims = []; let INSTANT = false;
+const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function tween(obj, key, to, dur = 1400, delay = 0, queue = false) {
+  if (!queue) for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === obj && anims[i].key === key) anims.splice(i, 1);
+  if (INSTANT) { obj[key] = to; return; }
+  anims.push({ obj, key, to, dur, t0: performance.now() + delay, from: null });
+}
+function camTo(c, dur = 2000, delay = 0, queue = false) { for (const k of ['x', 'y', 'w']) tween(cam, k, c[k], dur, delay, queue); }
+function fit(x0, y0, x1, y1, pad = 1.2, dy = 0) {
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 + dy, w: Math.max((x1 - x0) * pad, (y1 - y0) * pad * W / H) };
+}
+function rightFit(cx, cy, size, kmTall) {
+  const w = kmTall * W / H, k = w / W, boxPx = size / k;
+  return { x: cx + (W / 2 - (W - 100 - boxPx / 2)) * k, y: cy, w };
+}
+function toStage(x, y) { const h = cam.w * H / W; return [(x - (cam.x - cam.w / 2)) / cam.w * W, (y - (cam.y - h / 2)) / h * H]; }
+
+// ---------- lineup: benchmark radar domains, same scale ----------
+const FP = [
+  { name: 'SEVIR', dims: '384 km, US', country: 'US', w: 384, h: 384, color: 'var(--sevir)', ll: [-95.4, 29.8] },
+  { name: 'HKO-7', dims: '512 km, Hong Kong', country: 'Hong Kong', w: 512, h: 512, color: 'var(--hk)', ll: [114.17, 22.3] },
+  { name: 'MeteoNet', dims: '573 × 628 km, France', country: 'France', w: 573, h: 628, color: 'var(--meteo)', ll: [-1.922, 49.071] },
+  { name: 'KMA radar', dims: '1,024 km, Korea', country: 'Korea', w: 1024, h: 1024, color: 'var(--kr)', ll: [126.897, 35.727] },
+];
+let lineup = [];
+const GAP = 320;
+// land inside each footprint, precomputed (conformal conic centred on the domain, Natural Earth 50 m land, 1 unit = 1 km, origin at the box centre)
+function buildLineup(landPaths) {
+  const total = FP.reduce((a, d) => a + d.w, 0) + GAP * FP.length;
+  let cx = EA.x - EA.s / 2 - total; const base = EA.y + EA.s / 2;
+  const NS = 'http://www.w3.org/2000/svg', el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); parent.appendChild(e); return e; };
+  lineup = FP.map((d, i) => {
+    const x = cx + d.w / 2, y = base - d.h / 2; cx += d.w + GAP;
+    const g = el('g', {}, $('#lineup')), box = { x: x - d.w / 2, y: y - d.h / 2, width: d.w, height: d.h };
+    el('rect', { ...box, fill: 'var(--ocean)' }, g);
+    el('path', { class: 'land', d: landPaths[i], transform: `translate(${x} ${y})` }, g);
+    el('rect', { ...box, class: 'fp', style: `color:${d.color};stroke:${d.color}` }, g);
+    const lab = document.createElement('div'); lab.className = 'lbl'; lab.style.color = d.color;
+    lab.innerHTML = `<b>${d.name}</b><span>${d.dims}</span>`; hud.appendChild(lab);
+    return { d, x, y, g, dy: 300, op: 0, lab };
+  });
+}
+function lineupView(n) {   // frame items 0..n at true scale, text column on the left
+  const a = lineup[0], b = lineup[n], base = EA.y + EA.s / 2;
+  const hMax = Math.max(...lineup.slice(0, n + 1).map(it => it.d.h));
+  const x0 = a.x - a.d.w / 2, x1 = b.x + b.d.w / 2;
+  // items fill the right 55% of the stage, baseline at 80% height, headline and caption stay clear
+  const w = Math.max((x1 - x0) / .55, hMax / .5 * W / H), h = w * H / W;
+  return { x: x1 - w * .4, y: base - h * .3, w };
+}
+
+// ---------- frame loops: one timer drives every layer ----------
+let meta, bm = { ir: [], im: [] }, fi = 0, lastStep = 0, hold = 0;
+const FRAME_MS = 420, HOLD_MS = 1400;
+// every frame is decoded once into an ImageBitmap and drawn to a canvas, so playback never waits on decoding
+// frames load one at a time and each must decode fully; a truncated response is retried, never shown
+// frames are stored compactly (a grey value per pixel) and coloured here, once, at load time
+const colorCloud = d => { for (let p = 0; p < d.length; p += 4) { const a = d[p] / 255, g = 170 + 85 * a;
+  d[p] = g; d[p + 1] = g; d[p + 2] = Math.min(255, g + 8); d[p + 3] = a * 200; } };
+const colorMask = d => { for (let p = 0; p < d.length; p += 4) { d[p + 3] = d[p]; d[p] = d[p + 1] = d[p + 2] = 255; } };
+const colorWV = d => { for (let p = 0; p < d.length; p += 4) { const a = d[p] / 255; d[p] = 190; d[p + 1] = 214; d[p + 2] = 255; d[p + 3] = a * 190; } };
+const colorRain = d => { for (let p = 0; p < d.length; p += 4) { const k = d[p];
+  if (!k) { d[p + 3] = 0; continue; } const c = LEG.rgb[k - 1]; d[p] = c[0]; d[p + 1] = c[1]; d[p + 2] = c[2]; d[p + 3] = 225; } };
+async function loadBitmaps(prefix, n, colorize) {
+  const out = [], cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  for (let i = 0; i < n; i++) {
+    const src = n === 1 && !prefix.endsWith('_') ? `frames/${prefix}.webp` : `frames/${prefix}${String(i).padStart(2, '0')}.webp`;
+    for (let tries = 0; ; tries++) {
+      try {
+        const bmp = await createImageBitmap(await (await fetch(asset(src), { cache: 'no-store' })).blob());
+        cv.width = bmp.width; cv.height = bmp.height; cx.drawImage(bmp, 0, 0);
+        const img = cx.getImageData(0, 0, bmp.width, bmp.height); colorize(img.data); out.push(await createImageBitmap(img)); break;
+      } catch (e) { if (tries >= 4) throw new Error(`frame failed to load: ${src}`); await new Promise(r => setTimeout(r, 200)); }
+    }
+  }
+  return out;
+}
+const fx = $('#fx'), fctx = fx.getContext('2d');
+const off = document.createElement('canvas'); off.width = W; off.height = H; const octx = off.getContext('2d');
+function radarRect() { const [ax, ay] = toStage(RADAR.x0, RADAR.y0), [bx, by] = toStage(RADAR.x0 + RADAR.size, RADAR.y0 + RADAR.size); return [ax, ay, bx - ax, by - ay]; }
+function drawLoops() {
+  fctx.clearRect(0, 0, W, H);
+  const [ax, ay] = toStage(-2560, -2560), [bx, by] = toStage(2560, 2560), w = bx - ax, h = by - ay;
+  const im = bm.im[Math.min(bm.im.length - 1, Math.floor(fi / 3))];
+  if (st.ir > .01) { fctx.globalAlpha = st.ir; fctx.imageSmoothingEnabled = true; fctx.drawImage(bm.ir[fi], ax, ay, w, h); }
+  if (st.imOut > .01) {   // IMERG beyond the radar coverage
+    octx.clearRect(0, 0, W, H); octx.imageSmoothingEnabled = false; octx.drawImage(im, ax, ay, w, h);
+    octx.globalCompositeOperation = 'destination-out'; octx.imageSmoothingEnabled = true; octx.drawImage(bm.cover, ...radarRect());
+    octx.globalCompositeOperation = 'source-over';
+    fctx.globalAlpha = st.imOut; fctx.drawImage(off, 0, 0);
+  }
+  if (st.imIn > .01) {    // KMA HSP radar rain inside the coverage
+    fctx.globalAlpha = st.imIn; fctx.imageSmoothingEnabled = false; fctx.drawImage(bm.hsp[fi], ...radarRect());
+  }
+  fctx.globalAlpha = 1;
+}
+function showFrame(k) {
+  $('#time').textContent = new Date(meta.hsp_times[k] * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+}
+
+// ---------- render ----------
+function render(now) {
+  for (let i = 0; i < anims.length; i++) {
+    const a = anims[i]; if (now < a.t0) continue;
+    if (a.from === null) a.from = a.obj[a.key];
+    const p = Math.min(1, (now - a.t0) / a.dur);
+    a.obj[a.key] = a.from + (a.to - a.from) * easeIO(p);
+    if (p === 1) { anims.splice(i, 1); i--; }
+  }
+  if (slide >= 8 && $('#qrow').children.length && now - rLast > 650) { rIdx = (rIdx + 1) % meta.ragasa_times.length; drawQRow(); rLast = now; }
+  if (now - lastStep > FRAME_MS + hold) {
+    fi = (fi + 1) % bm.ir.length; hold = fi === bm.ir.length - 1 ? HOLD_MS : 0;
+    showFrame(fi); lastStep = now;
+  }
+  const h = cam.w * H / W;
+  document.querySelectorAll('.cam').forEach(e => e.setAttribute('viewBox', `${cam.x - cam.w / 2} ${cam.y - h / 2} ${cam.w} ${h}`));
+  const set = (id, v) => document.getElementById(id).setAttribute('opacity', v);
+  set('ea', st.ea); set('dim', st.dim); set('edge', st.edge);
+  drawLoops(); drawRF(); drawPaths();
+  if ((slide === 1 || slide === 12) && bm.wv) { const c = $('#wv').getContext('2d'); c.clearRect(0, 0, W, H); c.drawImage(bm.wv[fi], 0, (H - W) / 2, W, W); }
+  for (const id of ['base', 'fx', 'map']) document.getElementById(id).style.opacity = st.map;
+  $('#peak').setAttribute('stroke-dashoffset', 1 - st.peak); $('#peak').setAttribute('opacity', st.peak > 0 ? 1 : 0);
+  $('#lineup').setAttribute('opacity', st.lineup);
+  { const [px, py] = toStage(-2560, -2560); const L = $('#peakLab'); L.style.transform = `translate(${px}px, ${py - 40}px)`; L.style.opacity = st.peak * st.lineup; }
+  $('#leftShade').style.opacity = st.shade * .75;
+  for (const it of lineup) {
+    it.g.setAttribute('transform', `translate(0,${it.dy})`); it.g.setAttribute('opacity', it.op);
+    const [lx, ly] = toStage(it.x - it.d.w / 2, it.y - it.d.h / 2 + it.dy);
+    it.lab.style.transform = `translate(${lx}px, ${ly}px) translateY(-100%) translateY(-6px)`;
+    it.lab.style.opacity = it.op * st.lineup;
+    // when PEAK arrives the sizes fade out and the country fades back in on its own (the small boxes leave no room for both)
+    const sub = it.lab.querySelector('span'), txt = st.peak > .5 ? it.d.country : it.d.dims;
+    if (sub.textContent !== txt) sub.textContent = txt;
+    sub.style.opacity = Math.abs(1 - 2 * st.peak);
+  }
+  requestAnimationFrame(render);
+}
+
+// ---------- text ----------
+function swap(el, html, cls) {
+  el.classList.add('out');
+  const doit = () => { el.innerHTML = html; if (cls !== undefined) el.className = 'fade ' + cls; el.classList.remove('out'); };
+  clearTimeout(el._swap);   // a fade still pending from an earlier click must not overwrite this text
+  if (INSTANT) doit(); else el._swap = setTimeout(doit, 300);
+}
+let slide = 0;
+function setSlide(n) {
+  if (slide === n) return; slide = n;
+  const S = { 2: ['Why satellites?', 'Current AI datasets and benchmarks'], 3: ['Why satellites?', 'What satellites can see'],
+    4: ['Development pipeline', 'From data to rainfall maps'], 5: ['The task: rainfall retrieval', 'From satellite imagery to rainfall'],
+    1: ['', ''], 12: ['', ''], 6: ['Model', 'Conditional rectified flow*'], 11: ['Takeaways', 'Rainfall beyond the radar'], 7: ['Input ablation', 'Which inputs matter?'], 8: ['Results', 'What the ablation looks like'], 9: ['Results', 'Overall scores'], 10: ['Results', 'By rain intensity'] }[n];
+  swap($('#kicker'), S[0]); swap($('#headline'), S[1]);
+}
+const caption = (t, take = false) => swap($('#caption'), t, take ? 'take' : '');
+const capWidth = w => { $('#caption').style.maxWidth = w; };
+const stat = on => $('#stat').classList.toggle('out', !on);
+const clock = on => { $('#clock').style.opacity = on ? 1 : 0; };
+const foot = (t, w = '') => { const f = $('#foot'); if (t) f.innerHTML = t; f.style.maxWidth = w; f.classList.toggle('in', !!t); };
+// sources open in a new tab, so a reader of the hosted deck can follow them without losing their place
+const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+const SRC = {
+  sevir: link('https://registry.opendata.aws/sevir/', 'SEVIR'), hko: link('https://arxiv.org/abs/1706.03458', 'HKO-7'),
+  meteonet: link('https://meteonet.umr-cnrm.fr/', 'MeteoNet'), kma: link('https://www.kma.go.kr/eng/', 'KMA'),
+  nmsc: link('https://nmsc.kma.go.kr/enhome/html/main/main.do', 'KMA National Meteorological Satellite Center'),
+  imerg: link('https://gpm.nasa.gov/data/imerg', 'NASA GPM'), dem: link('https://doi.org/10.5270/ESA-c5d3d65', 'Copernicus GLO-90'),
+  rf: link('https://arxiv.org/abs/2209.03003', 'Flow Straight and Fast'),
+};
+const PEAK_NOTE = '*PEAK is under review; public release planned.';
+const CH_NOTE = 'GK2A channels: IR105 and IR123 are infrared (10.5 and 12.3 µm); WV063 and WV073 are water vapor (6.3 and 7.3 µm).';
+
+// ---------- slides 4 and 5: chain and input deck ----------
+const CARDS = [['dem', 'DEM'], ...['wv073', 'wv063', 'ir123', 'ir105'].flatMap(c => [2, 1, 0].map(k => [`${c}_${k}`, c]))];
+const ZGAP = 28;   // layer spacing, tuned so the stack at scale .72 looks as it did before depth scaling
+const CARD_VER = 4;   // bump when card images are re-exported so the browser does not show cached ones
+const cardUrl = f => ASSETS[`frames/card_${f}.webp`] || `frames/card_${f}.webp?v=${CARD_VER}`;
+// stack, arrow and target share one horizontal line through y = 540, centred as a group on the stage;
+// positions measured from rendered pixels; the tilted stack's visual centre sits below its transform centre
+const STACK = { x: 506, y: 639, k: .64 }, STACK_MID = { x: 974, y: 651, k: .72 };
+function buildDeck() {
+  const inner = $('#deckInner');
+  CARDS.forEach(([f]) => { const d = document.createElement('div'); d.className = 'card'; d.style.backgroundImage = `url(${cardUrl(f)})`; inner.appendChild(d); });
+  $('#rowLabels').innerHTML = CH.map(([, n, d, c]) => `<div class="rlab" style="color:${c}">${n}<span>${d}</span></div>`).join('');
+  const L = [['IR105', '#e84e1b'], ['IR123', '#d63384'], ['WV063', '#fbba20'], ['WV073', '#43c1c3']];
+  $('#legend').innerHTML = L.map(([n, c]) => `<div><i style="background:${c}"></i>${n}</div>`).join('')
+    + `<div><i style="background:#3a9a4a"></i>DEM</div>`;
+}
+const CH = [['ir105', 'IR105', 'Cloud-top temperature', '#e84e1b'], ['ir123', 'IR123', 'Thin versus deep cloud', '#d63384'],
+  ['wv063', 'WV063', 'Upper-level moisture', '#fbba20'], ['wv073', 'WV073', 'Mid-level moisture', '#43c1c3'], ['dem', 'DEM', 'Terrain height', '#3a9a4a']];
+const cardEls = () => [...document.querySelectorAll('#deckInner .card')];   // the main stack only, not the slide 8 mini stacks
+const chOf = i => { const f = CARDS[i][0]; return { ch: CH.findIndex(c => f.startsWith(c[0])), k: f === 'dem' ? 0 : +f.slice(-1) }; };
+const innerIdentity = () => { $('#deckInner').style.transform = 'translate(0px, 0px) scale(1) rotateX(0deg) rotateZ(0deg)'; };
+function deckFromMap() {   // the IR105 t card lies exactly on the East Asia map as it is framed now
+  const [ax, ay] = toStage(-2560, -2560), [bx, by] = toStage(2560, 2560);
+  innerIdentity();
+  cardEls().forEach((c, i) => { const { ch, k } = chOf(i);
+    c.style.transform = `translate3d(${ax}px, ${ay}px, 0px) scale(${(bx - ax) / 512})`; c.style.opacity = ch === 0 && k === 0 ? 1 : 0; });
+  document.querySelectorAll('.rlab').forEach(l => { l.style.transform = `translate(${ax}px, ${by + 20}px)`; l.style.opacity = 0; });
+}
+function deckRow(n, fan = false) {   // first n variables in a centred row; fan spreads each satellite card into t, t+10, t+20
+  // each fanned group is wider by two offsets, so the row makes room and the gaps between groups stay equal
+  const gap = 56, OFF = .09, span = i => 1 + (fan && i < 4 ? 2 * OFF : 0);
+  const units = [...Array(n).keys()].reduce((a, i) => a + span(i), 0);
+  const s = Math.min(400, (1560 - (n - 1) * gap) / units), off = OFF * s;
+  const xs = []; let x = 0; for (let i = 0; i < 5; i++) { xs.push(x); x += span(Math.min(i, n - 1)) * s + gap; }
+  const total = xs[n - 1] + span(n - 1) * s, x0 = 1030 - total / 2, y0 = 520 - s / 2 + (fan ? off : 0);
+  innerIdentity();
+  cardEls().forEach((c, i) => { const { ch, k } = chOf(i), d = fan ? k * off : 0;
+    c.style.transform = `translate3d(${x0 + xs[Math.min(ch, n - 1)] + d}px, ${y0 - d}px, ${-k}px) scale(${s / 512})`;
+    c.style.opacity = ch < n && (k === 0 || fan) ? 1 : 0; });
+  document.querySelectorAll('.rlab').forEach((l, ch) => {
+    l.style.transform = `translate(${x0 + xs[ch]}px, ${y0 + s + 18}px)`; l.style.width = s + 'px';
+    l.style.opacity = ch < n ? 1 : 0; });
+}
+function deckStack(cx, cy, k = .66) {
+  // scale depth too, so the stack keeps identical proportions at every size
+  $('#deckInner').style.transform = `translate(${cx - 256}px, ${cy - 256}px) scale3d(${k}, ${k}, ${k}) rotateX(56deg) rotateZ(-40deg)`;
+  cardEls().forEach((c, i) => { c.style.transform = `translate3d(0px, 0px, ${i * ZGAP + (i ? 36 : 0)}px) scale(1)`; c.style.opacity = 1; });
+  document.querySelectorAll('.rlab').forEach(l => { l.style.opacity = 0; });
+}
+const cls = (sel, c, on) => document.querySelectorAll(sel).forEach(e => e.classList.toggle(c, on));
+function resetExtras() {
+  cls('.node,.arrow,#goal,#target,#flow', 'in', false); cls('.node', 'lit', false);
+  $('#deck').style.opacity = 0; $('#legend').style.opacity = 0;
+  document.querySelectorAll('.rlab').forEach(l => { l.style.opacity = 0; });
+  rfTimers.forEach(clearTimeout); rfTimers = []; modelReset();
+  setCfg(-1); $('#configs').classList.remove('in'); $('#metrics').classList.remove('in'); foot('');
+  document.querySelectorAll('#qrow > *').forEach(e => e.classList.remove('in')); qZoom(1); if ($('#qbox')) qBox(false);
+  thrReset(); chainReset(); $('#endSlide').classList.remove('in'); $('#rtime').classList.remove('in'); rIdx = 5;
+  document.querySelectorAll('.qp,.ccol,.caxis').forEach(e => { e.style.opacity = ''; });
+  qCompact(false); document.querySelectorAll('.cbar').forEach(b => { b.style.width = '0px'; }); document.querySelectorAll('.cval').forEach(v => { v.style.left = '0px'; });
+  $('#target').style.opacity = ''; $('#target').style.transform = ''; $('#caption').style.maxWidth = ''; $('#foot').style.maxWidth = '';
+}
+
+// ---------- slide 6: the real solver trajectory for the 06:00 scene ----------
+// frame 0 is the initial noise, frames 1 to 31 are solver updates, frame 32 is the frozen paper prediction
+const RF = { t: 0, k: 0, drawn: -1 };
+let LEG = null;
+function drawRF() {
+  if (!bm.traj || RF.drawn === RF.k) return; RF.drawn = RF.k;
+  const c = $('#rf').getContext('2d'); c.imageSmoothingEnabled = false; c.clearRect(0, 0, 512, 512); c.drawImage(bm.traj[RF.k], 0, 0, 512, 512);
+}
+const PAIRS = [[14, 14, 244, 30], [22, 40, 250, 16], [10, 64, 240, 58], [30, 80, 248, 78], [18, 28, 236, 70], [26, 54, 252, 44]];
+function buildPaths() {
+  const g = PAIRS.map(([x0, y0, x1, y1], i) => {
+    const cy = (y0 + y1) / 2 + (i % 2 ? 34 : -34);
+    return `<path d="M${x0} ${y0} Q${(x0 + x1) / 2} ${cy} ${x1} ${y1}" fill="none" stroke="#2a3947" stroke-width="1.5" stroke-dasharray="3 4"/>`
+      + `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="rgba(245,158,11,.45)" stroke-width="1.5"/>`
+      + `<circle cx="${x0}" cy="${y0}" r="3" fill="#8fa1b3"/><circle cx="${x1}" cy="${y1}" r="3" fill="#00c8ff"/>`
+      + `<circle class="pt" cx="${x0}" cy="${y0}" r="5" fill="var(--peak)"/>`;
+  }).join('');
+  $('#paths').innerHTML = g;
+}
+function drawPaths() {
+  const t = RF.t; document.querySelectorAll('#paths .pt').forEach((c, i) => { const [x0, y0, x1, y1] = PAIRS[i];
+    c.setAttribute('cx', x0 + (x1 - x0) * t); c.setAttribute('cy', y0 + (y1 - y0) * t); });
+}
+function pulse() {
+  for (const id of ['vnet', 'loop']) { const e = $('#' + id); e.classList.add('pulse'); setTimeout(() => e.classList.remove('pulse'), 90); }
+}
+function rfStep(k) {   // k solver updates done, 0 to 31
+  if (k > 0 && !INSTANT) pulse();
+  RF.k = k; RF.t = k / 31; $('#rfcount').textContent = `Step ${k} of 31`;
+  document.querySelectorAll('#rfticks i').forEach((e, j) => e.classList.toggle('on', j < k));
+}
+const place = (el, x, y, w, h) => Object.assign(el.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: (h ?? w) + 'px' });
+function makeWay() {   // inputs -> velocity network (looped 32 times) -> prediction, compared with the IMERG target
+  deckStack(250, 605, .42); $('#legend').style.opacity = 0;
+  place($('#model'), 860, 320, 440); $('#model').classList.add('in');
+  place($('#target'), 1380, 320, 440);
+  $('#flow').style.left = '425px'; $('#flow').style.setProperty('--fw', '46px');
+  Object.assign($('#flowLab').style, { left: '425px', opacity: 0 });
+  Object.assign($('#vs').style, { left: '1340px', top: '540px', opacity: 1 });
+  $('#vnet').classList.add('in'); $('#loop').classList.add('in');
+  for (const id of ['rf', 'rfui']) $('#' + id).style.opacity = 1;
+}
+function modelReset() {
+  $('#model').classList.remove('in'); $('#vs').style.opacity = 0; $('#flowLab').style.opacity = 0;
+  $('#vnet').classList.remove('in'); $('#loop').classList.remove('in'); $('#flowLab').style.left = '540px';
+  for (const id of ['rf', 'rfui']) $('#' + id).style.opacity = 0;
+  $('#flow').style.left = '775px'; RF.t = 0; rfStep(0);
+}
+let rfTimers = [];
+
+// ---------- slide 7: one checkpoint, three input configurations ----------
+const ZERO = [[], ['dem'], ['ir123', 'wv063', 'wv073', 'dem']];   // inputs set to zero after normalization
+function setCfg(k) {
+  cardEls().forEach((c, i) => {
+    const off = k >= 0 && ZERO[k].some(z => CARDS[i][0].startsWith(z));
+    c.classList.toggle('zero', off);
+    // used layers lift and zeroed layers sink, so the gap between them shows what the model still sees
+    const dz = k > 0 ? (off ? -125 : 70) : 0;
+    if (k >= 0) c.style.transform = `translate3d(0px, 0px, ${i * ZGAP + (i ? 36 : 0) + dz}px) scale(1)`;
+  });
+  const names = ['ir105', 'ir123', 'wv063', 'wv073', 'dem'];
+  document.querySelectorAll('#legend div').forEach((d, j) => d.classList.toggle('zero', k >= 0 && ZERO[k].includes(names[j])));
+  document.querySelectorAll('.cfg').forEach((d, j) => d.classList.toggle('on', j === k));
+}
+function leaveModel() {   // clear the slide 6 scene
+  $('#model').classList.remove('in'); $('#target').style.opacity = 0; $('#target').style.transform = 'translateX(30px)';
+  $('#vs').style.opacity = 0; $('#flowLab').style.opacity = 0; $('#flow').classList.remove('in');
+  $('#vnet').classList.remove('in'); $('#loop').classList.remove('in');
+}
+// ---------- slide 8: qualitative row ----------
+// PLACEHOLDER fields until the Ragasa export: the 17 July 06:00 IMERG field, and stand-ins that lose structure step by step
+const QP = [
+  { name: 'IMERG target', sub: 'Reference', cfg: -1, key: 'imerg' },
+  { name: 'All variables', sub: 'Every satellite input, plus terrain', cfg: 0, key: 'all' },
+  { name: 'Without terrain', sub: 'Terrain switched off', cfg: 1, key: 'nodem' },
+  { name: 'Infrared only', sub: 'A single infrared channel', cfg: 2, key: 'ir105' },
+];
+const QX = [140, 560, 980, 1400];
+let qCore = { x: .5, y: .5 }, rIdx = 5, rLast = 0;
+function drawQRow() {   // all four panels show the same half-hourly interval
+  document.querySelectorAll('.qp canvas').forEach((cv, j) => { const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, 512, 512); c.drawImage(bm.ragasa[QP[j].key][rIdx], 0, 0, 512, 512); });
+  $('#rtime').textContent = 'Typhoon Ragasa · ' + new Date(meta.ragasa_times[rIdx] * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+}
+function miniStack(k) {   // small copy of the input stack showing which layers configuration k uses
+  const m = document.createElement('div'); m.className = 'mini'; const inner = document.createElement('div'); inner.className = 'mi';
+  CARDS.forEach(([f], i) => { const c = document.createElement('div'); c.className = 'card'; c.style.backgroundImage = `url(${cardUrl(f)})`;
+    const off = ZERO[k].some(z => f.startsWith(z)); c.classList.toggle('zero', off);
+    c.style.transform = `translate3d(0px, 0px, ${i * ZGAP + (i ? 36 : 0)}px) scale(1)`; inner.appendChild(c); });   // no lift here: removed layers only fade
+  m.appendChild(inner); return m;
+}
+function buildQRow() {
+  if ($('#qrow').children.length) return;
+  QP.forEach((q, j) => {
+    const pnl = document.createElement('div'); pnl.className = 'qp'; pnl.style.left = QX[j] + 'px';
+    pnl.innerHTML = `<div class="qz"><img src="${asset('frames/card_base.webp')}" alt=""><canvas width="512" height="512"></canvas></div>` + (j ? '' : '<div id="qbox"></div>');
+    const lab = document.createElement('div'); lab.className = 'qlab'; lab.style.left = QX[j] + 'px'; lab.innerHTML = (q.cfg >= 0 ? `<i class="dot" style="background:${CFG_C[q.cfg]}"></i>` : '') + `${q.name}<span>${q.sub}</span>`;
+    $('#qrow').append(pnl, lab);
+    if (q.cfg >= 0) { const m = miniStack(q.cfg); m.style.left = (QX[j] + 190) + 'px'; m.style.top = '805px'; $('#qrow').appendChild(m); }
+  });
+  qCore = { x: meta.ragasa_core[0], y: meta.ragasa_core[1] };   // heaviest IMERG rain at the paper's scene
+  drawQRow();
+}
+function qShow(j) {   // reveal panel j with its label (and mini stack)
+  const els = [...document.querySelectorAll('#qrow > .qp, #qrow > .qlab, #qrow > .mini')];   // not the slide 9 chart columns
+  const group = els.filter(e => parseInt(e.style.left) === QX[j] || parseInt(e.style.left) === QX[j] + 190);
+  group.forEach(e => e.classList.add('in'));
+}
+const Q_ZOOM = 3.2;
+const qWin = z => { const cl = v => Math.min(1 - .5 / z, Math.max(.5 / z, v)); return [cl(qCore.x), cl(qCore.y)]; };   // zoom window centre, kept inside the domain
+function qZoom(z, panels = [0, 1, 2, 3]) {   // percentages, so the zoom holds while the panels resize
+  const [cx, cy] = qWin(z);
+  document.querySelectorAll('.qz').forEach((e, j) => { if (panels.includes(j))
+    e.style.transform = z > 1 ? `translate(${(.5 - z * cx) * 100}%, ${(.5 - z * cy) * 100}%) scale(${z})` : ''; });
+}
+function qBox(on) {   // the zoom window, outlined on the full IMERG panel
+  const b = $('#qbox'), [cx, cy] = qWin(Q_ZOOM), w = 100 / Q_ZOOM;
+  Object.assign(b.style, { left: (cx * 100 - w / 2) + '%', top: (cy * 100 - w / 2) + '%', width: w + '%', height: w + '%' });
+  b.classList.toggle('in', on);
+}
+function takeaway(n) { document.querySelectorAll('#takeaways div')[n].classList.add('in'); }
+function chainReturn() {   // the slide 4 pipeline comes back: dataset and retrieval done
+  ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach(id => $('#' + id).classList.add('in'));
+  for (const id of ['n1', 'n2']) { $('#' + id).classList.remove('lit'); $('#' + id).classList.add('done'); }
+  $('#n1 i').textContent = 'Release soon'; $('#n2 i').textContent = 'Done';
+}
+function chainReset() {
+  for (const id of ['n1', 'n2', 'n3', 'n4']) $('#' + id).classList.remove('done', 'ongoing', 'lit');
+  $('#goal').classList.remove('lit');
+  $('#n1 i').textContent = 'Built'; $('#n2 i').textContent = 'This presentation'; $('#n3 i').textContent = 'In development'; $('#n4 i').textContent = 'In development';
+  document.querySelectorAll('#takeaways div').forEach(d => d.classList.remove('in'));
+}
+function leaveAblation() { $('#configs').classList.remove('in'); $('#metrics').classList.remove('in'); $('#legend').style.opacity = 0; foot(''); }
+// ---------- slide 9: overall scores under each map ----------
+// values from the PEAK paper, 12,759 East Asian test scenes (Table: inference-time modality sensitivity)
+const SCORES = [['CSI', 'Event detection', [.3199, .2807, .1623]], ['FSS', 'Spatial agreement', [.7481, .6948, .4734]], ['SSIM', 'Spatial structure', [.8132, .7826, .7211]]];
+const BAR_W = 180, TILE_DX = 65;   // bars start at the left edge of the compact tiles
+function qCompact(on) {   // shrink the map row into a top band
+  document.querySelectorAll('.qp').forEach((p, j) => Object.assign(p.style, on
+    ? { left: QX[j] + TILE_DX + 'px', top: '216px', width: '250px', height: '250px' } : { left: QX[j] + 'px', top: '', width: '', height: '' }));
+  document.querySelectorAll('.qlab').forEach((l, j) => Object.assign(l.style, on ? { left: QX[j] + TILE_DX + 'px', top: '478px' } : { left: QX[j] + 'px', top: '' }));
+  document.querySelectorAll('.mini').forEach(m => { m.style.opacity = on ? 0 : ''; });
+}
+function buildCharts() {
+  if ($('.ccol')) return;
+  const host = $('#qrow');
+  const lab = document.createElement('div'); lab.className = 'ccol'; lab.id = 'clab'; lab.style.left = QX[0] + TILE_DX + 'px';
+  lab.innerHTML = SCORES.map(([n, d]) => `<div class="crow"><div class="cname">${n}<span>${d}</span></div></div>`).join('');
+  host.appendChild(lab);
+  for (let j = 1; j < 4; j++) {
+    const c = document.createElement('div'); c.className = 'ccol'; c.style.left = QX[j] + TILE_DX + 'px';
+    c.innerHTML = SCORES.map(([, , v]) => { const x = v[j - 1], drop = Math.round((x / v[0] - 1) * 100);
+      return `<div class="crow"><div class="cbar" style="background:${CFG_C[j - 1]}" data-w="${x * BAR_W}"></div>`
+        + `<div class="cval" data-l="${x * BAR_W + 12}">${x.toFixed(3)}${j > 1 ? ` <em>(${String(drop).replace('-', '−')}%)</em>` : ''}</div></div>`; }).join('');
+    const ax = document.createElement('div'); ax.className = 'caxis'; ax.style.left = (QX[j] + TILE_DX) + 'px';
+    host.append(c, ax);
+  }
+}
+function showCol(j) {   // j = 1..3, one configuration's bars grow
+  const c = document.querySelectorAll('.ccol')[j]; c.classList.add('in');
+  c.querySelectorAll('.cbar').forEach(b => { b.style.width = b.dataset.w + 'px'; });
+  c.querySelectorAll('.cval').forEach(v => { v.style.left = v.dataset.l + 'px'; });
+  document.querySelectorAll('.caxis')[j - 1].classList.add('in');
+}
+// ---------- slide 10: CSI and FSS by threshold (PEAK supplement table) ----------
+const THR = [
+  { name: 'CSI', unit: 'CSI', th: ['0.1', '1', '5', '10'], ymax: .5, x0: 150, v: [[.4413, .3785, .2718, .1881], [.3728, .3286, .2492, .1721], [.2154, .1844, .1590, .0902]] },
+  { name: 'FSS', unit: 'FSS', th: ['0.1', '1', '4', '8'], ymax: 1, x0: 1030, v: [[.8247, .7931, .7332, .6414], [.7384, .7378, .6982, .6046], [.5227, .4897, .4892, .3920]] },
+];
+const CFG_NAMES = ['All variables', 'Without terrain', 'Infrared only'], CFG_C = ['#f59e0b', '#60a5fa', '#e84e1b'];
+const TW = 620, TY0 = 600, TH = 230;
+const tx = (c, i) => c.x0 + 60 + i * (TW / 3), ty = (c, v) => TY0 + TH - v / c.ymax * TH;
+function buildThr() {
+  if ($('#thr').childElementCount) return;
+  let g = '';
+  THR.forEach(c => {   // label heights: at each line's last point, pushed apart by at least 28 px
+    const ys = c.v.map(v => ty(c, v[3])), order = ys.map((y, j) => j).sort((a, b) => ys[a] - ys[b]);
+    for (let k = 1; k < order.length; k++) ys[order[k]] = Math.max(ys[order[k]], ys[order[k - 1]] + 28);
+    c.ly = ys;
+  });
+  THR.forEach(c => {
+    g += `<text class="ttl" x="${c.x0}" y="${TY0 - 14}">${c.name}</text>`;
+    for (let k = 0; k <= 5; k++) { const v = c.ymax * k / 5, y = ty(c, v);
+      g += `<line class="grid" x1="${c.x0 + 40}" x2="${c.x0 + 60 + TW + 20}" y1="${y}" y2="${y}"/><text x="${c.x0 + 30}" y="${y + 7}" text-anchor="end">${v.toFixed(c.ymax < 1 ? 1 : 1)}</text>`; }
+    g += `<line class="axis" x1="${c.x0 + 40}" x2="${c.x0 + 60 + TW + 20}" y1="${TY0 + TH}" y2="${TY0 + TH}"/>`;
+    c.th.forEach((t, i) => { g += `<text x="${tx(c, i)}" y="${TY0 + TH + 34}" text-anchor="middle">${t}</text>`; });
+    g += `<text x="${c.x0 + 60 + TW / 2}" y="${TY0 + TH + 72}" text-anchor="middle">Rain rate, mm/h</text>`;
+    c.v.forEach((vals, j) => {
+      const d = vals.map((v, i) => `${i ? 'L' : 'M'}${tx(c, i)} ${ty(c, v)}`).join(' ');
+      g += `<g class="cfg${j}"><path class="ln" d="${d}" stroke="${CFG_C[j]}" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>`
+        + vals.map((v, i) => `<circle class="pt" cx="${tx(c, i)}" cy="${ty(c, v)}" r="7" fill="${CFG_C[j]}"/>`).join('')
+        + `<text class="end" x="${tx(c, 3) + 18}" y="${c.ly[j] + 7}" fill="${CFG_C[j]}">${CFG_NAMES[j]}</text></g>`;
+    });
+  });
+  // callouts: brackets between the compared points, text in clear space
+  const F = THR[1], C = THR[0];
+  g += `<g class="call" id="call1"><line x1="${tx(F, 0) - 22}" x2="${tx(F, 0) - 22}" y1="${ty(F, .8247)}" y2="${ty(F, .7384)}" style="stroke-dasharray:none;stroke-width:3"/>`
+     + `<text x="${tx(F, 0) - 10}" y="${ty(F, .22)}">Without terrain: 0.825 → 0.738 at 0.1 mm/h</text></g>`;
+  g += `<g class="call" id="call2"><line x1="${tx(C, 3) - 22}" x2="${tx(C, 3) - 22}" y1="${ty(C, .1881)}" y2="${ty(C, .0902)}" style="stroke-dasharray:none;stroke-width:3"/>`
+     + `<text x="${tx(C, 3) + 10}" y="${ty(C, .46)}" text-anchor="end">Infrared only: 0.188 → 0.090 at 10 mm/h</text></g>`;
+  $('#thr').innerHTML = g;
+}
+function drawCfg(j) {
+  document.querySelectorAll(`#thr .cfg${j}`).forEach(g => { g.classList.add('on'); g.querySelector('.ln').setAttribute('stroke-dashoffset', 0); });
+}
+function thrReset() {
+  $('#thr').classList.remove('in', 'best');
+  document.querySelectorAll('#thr g[class^="cfg"]').forEach(g => { g.classList.remove('on'); g.querySelector('.ln').setAttribute('stroke-dashoffset', 1); });
+  document.querySelectorAll('#thr .call').forEach(c => c.classList.remove('on'));
+}
+// ---------- builds ----------
+const STAGGER = 1600;
+// PEAK view: the East Asia box fills a 700 px square at the right, its top below the headline
+const satView = () => { const S = 720, k = EA.s / S, cx = W - 96 - S / 2, cy = H / 2;
+  return { x: EA.x - (cx - W / 2) * k, y: EA.y - (cy - H / 2) * k, w: W * k }; };
+const allFit = () => { const S = 700, k = EA.s / S, cx = W - 96 - S / 2, cy = 250 + S / 2;
+  return { x: EA.x - (cx - W / 2) * k, y: EA.y - (cy - H / 2) * k, w: W * k }; };
+const STEPS = [
+  ...[0, 1, 2, 3].map(n => ({ slide: 2, run() {
+      if (!n) { $('#titleSlide').classList.remove('in'); $('#wv').classList.remove('in'); }
+      if (n) camTo(lineupView(n), 1300);
+      tween(lineup[n], 'dy', 0, 900, n ? 500 : 150); tween(lineup[n], 'op', 1, 700, n ? 500 : 150);
+      if (!n) { capWidth('470px'); caption('Most AI nowcasting datasets are built from weather radar.');
+        foot(`Drawn to the same scale on Natural Earth coastlines. SEVIR samples 384 km patches across the US; one is shown.\n`
+          + `Sources: ${SRC.sevir} (US), ${SRC.hko} (Hong Kong), ${SRC.meteonet} (France), and the ${SRC.kma} radar network (Korea).`); } } })),
+  { slide: 2, run() { camTo(allFit(), 2200); tween(st, 'peak', 1, 1800, 900); tween(st, 'ea', 1, 1400, 1400);
+      capWidth('470px'); caption('We introduce <span class="pk">PEAK*</span>: <b class="pk">P</b>recipitation over <b class="pk">E</b>ast <b class="pk">A</b>sia and <b class="pk">K</b>orea.'); stat(true);
+      foot(PEAK_NOTE + '\nEast Asia: satellite images, satellite rainfall, and terrain. Korea adds radar, gauges, and lightning.'); } },
+  { slide: 2, run() { stat(false); tween(st, 'lineup', 0, 900); tween(st, 'shade', 1, 1200);
+      camTo(rightFit((RB.x0 + RB.x1) / 2, (RB.y0 + RB.y1) / 2, Math.max(RB.x1 - RB.x0, RB.y1 - RB.y0), (RB.y1 - RB.y0) * 1.24), 2600); tween(st, 'imIn', 1, 1200, 1600);
+      capWidth(''); caption('Korea’s radar rainfall during the heavy rain of 17 July 2025.');
+      swap($('#headline'), 'The limits of radar coverage'); clock(true); $('#cnote').textContent = '';
+      foot(`Radar rainfall: the ${SRC.kma} composite of Korea’s national radar network.`); } },
+  { slide: 2, run() { tween(st, 'edge', 1, 900, 300); tween(st, 'dim', .72, 1400, 500);
+      caption('Most nowcasting models only see as far as the radar sees. Beyond this edge, there is no radar data.', true); } },
+  { slide: 3, run() { tween(st, 'shade', 0, 1600); camTo(rightFit(EA.x, EA.y, EA.s, EA.s * 1.18), 2600); tween(st, 'dim', 0, 1600, 600);
+      caption('Zoomed out to East Asia, Korea’s radar covers only a small part of the region.'); foot('', ''); } },
+  { slide: 3, run() { tween(st, 'ir', 1, 1600, 200); tween(st, 'edge', .6, 1600, 200);
+      caption('GK2A, Korea’s geostationary weather satellite, images all of East Asia every 10 minutes, day and night.');
+      foot(`GK2A (GEO-KOMPSAT-2A) is run by the ${SRC.nmsc}.\nShown here: its infrared images of clouds.`, '780px'); } },
+  { slide: 3, run() { tween(st, 'imOut', 1, 1600, 200); tween(st, 'dim', 0, 1600, 200); 
+      caption('IMERG, a satellite rainfall estimate, shows the storms beyond the radar edge.');
+      foot(`IMERG (Integrated Multi-satellitE Retrievals for GPM, by ${SRC.imerg}) estimates rainfall every\n30 minutes from microwave and infrared satellites, calibrated with rain gauges.`, '780px'); } },
+  { slide: 3, run() { tween(st, 'ir', .55, 1200); caption('How much rainfall can geostationary satellites recover across East Asia, and which inputs matter?', true); } },
+  { slide: 4, run() { tween(st, 'map', .08, 1200); clock(false);
+      ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach((id, n) => INSTANT ? $('#' + id).classList.add('in') : setTimeout(() => $('#' + id).classList.add('in'), 400 + n * 200));
+      INSTANT ? $('#n2').classList.add('lit') : setTimeout(() => $('#n2').classList.add('lit'), 2200);
+      caption('S2RAIN† is our pipeline toward high-resolution rainfall maps. This presentation covers its first stage: rainfall retrieval.');
+      foot('*PEAK is under review; public release planned.\n†S2RAIN develops three stages simultaneously: rainfall retrieval, nowcasting, and downscaling.'); } },
+  { slide: 5, run() { cls('.node,.arrow,.goal', 'in', false);
+      tween(st, 'map', 1, 1200, 300); tween(st, 'imOut', 0, 900); tween(st, 'imIn', 0, 900); tween(st, 'edge', 0, 900);   // back to the satellite view, clouds only
+      camTo(satView(), 1600);
+      caption('We curated PEAK* for precipitation research. For rainfall retrieval, we take four GK2A infrared and water-vapor channels, plus terrain.');
+      foot(PEAK_NOTE + '\n' + CH_NOTE); } },
+  { slide: 5, run() {
+      tween(st, 'map', 0, 700, 200);
+      const wasInstant = stage.classList.contains('instant');   // keep Back's no-animation mode if it is on
+      stage.classList.add('instant'); deckFromMap(); void $('#deckInner').offsetWidth; if (!wasInstant) stage.classList.remove('instant');
+      $('#deck').style.opacity = 1;
+      INSTANT ? deckRow(1) : setTimeout(() => deckRow(1), 350);
+      caption('IR105 sees cloud-top temperature: colder, taller clouds tend to rain harder.'); foot(CH_NOTE); } },
+  ...[
+    'IR123, compared with IR105, separates thin high cloud from deep rain clouds.',
+    'WV063 tracks moisture high in the atmosphere, where deep storms reach.',
+    'WV073 tracks moisture in the middle atmosphere that feeds the rain below.',
+    'Terrain matters too: mountains lift moist air and shape where rain falls.',
+  ].map((t, j) => ({ slide: 5, run() { deckRow(j + 2); caption(t);
+      foot(j === 3 ? `${CH_NOTE}\nTerrain: ${SRC.dem} elevation, resampled to the 10 km grid.` : CH_NOTE); } })),
+  { slide: 5, run() { deckRow(5, true);
+      caption('IMERG gives rainfall every 30 minutes and GK2A an image every 10, so each IMERG half hour is paired with the three GK2A images taken in it.'); } },
+  { slide: 5, run() { deckStack(STACK_MID.x, STACK_MID.y, STACK_MID.k); $('#legend').style.opacity = 1;
+      caption('Stacked together, 12 satellite images plus terrain form one input from the PEAK* dataset.'); foot(PEAK_NOTE); } },
+  { slide: 5, run() { deckStack(STACK.x, STACK.y, STACK.k);
+      // the target sits right of the stack, its label clear of the headline; the arrow spans the gap
+      Object.assign($('#target').style, { left: '1100px', top: '300px', width: '660px', height: '660px' });
+      $('#flow').style.left = '800px'; $('#flow').style.setProperty('--fw', '250px');
+      $('#flow').classList.add('in'); $('#target').classList.add('in');
+      caption('The task: estimate the IMERG rainfall for that same half hour, on a 10 km grid across East Asia.'); } },
+  { slide: 6, run() { makeWay(); rfStep(0); foot(`*Rectified flow: Liu, Gong & Liu, ${SRC.rf} (ICLR 2023). The in-between states are shown for illustration.`);
+      caption('The model starts from random noise and is guided by the satellite stack at every step.'); } },
+  { slide: 6, run() { rfTimers.forEach(clearTimeout); rfTimers = [];
+      const end = () => { RF.k = 32; };   // the frozen paper prediction, not another solver step
+      if (INSTANT) { rfStep(31); end(); } else { for (let k = 0; k <= 31; k++) rfTimers.push(setTimeout(() => rfStep(k), k * 150)); rfTimers.push(setTimeout(end, 32 * 150)); }
+      caption('Step by step, the noise becomes a rainfall estimate, compared with IMERG.'); } },
+  { slide: 7, run() { leaveModel(); deckStack(834, 520, .6); $('#legend').style.opacity = 1;
+      $('#configs').classList.add('in'); setCfg(0);
+      caption('Input ablation*: we switch inputs off and compare the results.');
+      foot('*Inputs are switched off at test time in one trained model; the model is not retrained.'); } },
+  { slide: 7, run() { setCfg(1); caption('Without terrain: the terrain input is switched off.'); } },
+  { slide: 7, run() { setCfg(2); caption('Infrared only: only IR105 stays on; the other channels and terrain are switched off.'); } },
+  { slide: 7, run() { $('#metrics').classList.add('in');
+      caption('Each configuration is scored against IMERG on three measures.');
+      foot('*Inputs are switched off at test time in one trained model; the model is not retrained.\nCSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.'); } },
+  { slide: 8, run() { leaveAblation(); buildQRow(); setCfg(0); deckStack(750, 805, .22); qShow(0); $('#rtime').classList.add('in');
+      capWidth('560px'); caption('Typhoon Ragasa, 21 September 2025. Left: IMERG, the reference.');
+      foot('A test case, 07:00 to 12:30 UTC. All model panels come from the same trained model.'); } },
+  { slide: 8, run() { qShow(1); $('#deck').style.opacity = 0; caption('All variables: the eyewall and rain bands come through.'); } },
+  { slide: 8, run() { qShow(2); caption('Without terrain: the structure mostly holds.'); } },
+  { slide: 8, run() { qShow(3); caption('Infrared only: the typhoon’s structure falls apart.'); } },
+  { slide: 8, run() { qZoom(Q_ZOOM); caption('A closer look: the eyewall and spiral rain bands.'); } },
+  { slide: 9, run() { capWidth(''); qZoom(1, [0]); qBox(true); qCompact(true); buildCharts(); $('#clab').classList.add('in'); showCol(1);
+      caption('Average scores over 12,759 test scenes from 2025, with all variables.');
+      foot('Higher is better for all three. Percentages are the change from all variables. CSI and FSS are averaged over several rain-rate thresholds.'); } },
+  { slide: 9, run() { showCol(2); caption('Without terrain, every score drops.'); } },
+  { slide: 9, run() { showCol(3); caption('With infrared only, the largest drop: event detection (CSI) falls by about half.'); } },
+  { slide: 10, run() { document.querySelectorAll('.ccol,.caxis').forEach(e => { e.style.opacity = 0; });
+      buildThr(); $('#thr').classList.add('in'); drawCfg(2);
+      caption('Infrared only is lowest at every rain rate.');
+      foot('CSI and FSS at each rain-rate threshold. FSS uses 80 × 80 km neighborhoods.'); } },
+  { slide: 10, run() { drawCfg(1); caption('Without terrain: higher, but still below all variables.'); } },
+  { slide: 10, run() { drawCfg(0); $('#thr').classList.add('best'); document.querySelectorAll('#thr .call').forEach(c => c.classList.add('on'));
+      caption('All variables: best at every rain rate.'); } },
+  { slide: 11, run() { $('#thr').classList.remove('in'); $('#rtime').classList.remove('in'); document.querySelectorAll('#qrow > *').forEach(e => e.classList.remove('in')); qBox(false);
+      chainReturn(); takeaway(0); caption(''); foot(''); } },
+  { slide: 11, run() { takeaway(1); } },
+  { slide: 11, run() { takeaway(2); for (const id of ['n3', 'n4']) $('#' + id).classList.add('ongoing');
+      $('#goal').classList.add('lit');
+      caption('PEAK* coming soon on GitHub and Hugging Face.'); foot(PEAK_NOTE); } },
+  { slide: 12, run() { ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach(id => $('#' + id).classList.remove('in')); foot('');
+      document.querySelectorAll('#takeaways div').forEach(d => d.classList.remove('in')); caption('');
+      $('#endSlide').classList.add('in'); $('#wv').classList.add('in'); } },
+];
+let step = -1;
+function reset() {
+  anims.length = 0; step = -1; slide = 0;
+  Object.assign(st, { ea: 0, ir: 0, imIn: 0, imOut: 0, dim: 0, edge: 0, peak: 0, lineup: 1, shade: 0, map: 1 });
+  resetExtras();
+  lineup.forEach(it => { it.dy = 300; it.op = 0; });
+  Object.assign(cam, lineupView(0));
+  stat(false); clock(false); $('#caption').classList.add('out');
+  $('#dots').innerHTML = STEPS.map((s, n) => `<i class="${n && s.slide !== STEPS[n - 1].slide ? 'gap' : ''}"></i>`).join('');
+  setSlide(1); $('#titleSlide').classList.add('in'); $('#wv').classList.add('in');
+}
+function next() {
+  if (step >= STEPS.length - 1) return;
+  step++; setSlide(STEPS[step].slide); STEPS[step].run();
+  document.querySelectorAll('#dots i').forEach((d, n) => d.classList.toggle('on', n <= step));
+  navUpdate(); $('#hint').classList.remove('in');
+}
+function navUpdate() {
+  $('#navcount').textContent = `Slide ${Math.max(slide, 1)} of 12`;
+  $('#prev').disabled = step < 0; $('#nextBtn').disabled = step >= STEPS.length - 1;
+}
+// the bar appears with the pointer and fades after a pause, and stays hidden in full screen; a clicker never moves the pointer
+const inFullscreen = () => !!document.fullscreenElement;
+let navTimer = 0;
+function navWake() {
+  if (inFullscreen()) { $('#nav').classList.remove('in'); return; }
+  $('#nav').classList.add('in'); clearTimeout(navTimer);
+  navTimer = setTimeout(() => { if (!$('#nav').matches(':hover')) $('#nav').classList.remove('in'); }, 2600);
+}
+for (const ev of ['mousemove', 'touchstart']) addEventListener(ev, navWake, { passive: true });
+$('#prev').addEventListener('click', () => back());
+$('#nextBtn').addEventListener('click', () => next());
+$('#fs').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+// swipe on touch screens; a tap still advances through the stage's click
+let touchX = null;
+stage.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+stage.addEventListener('touchend', e => {
+  if (touchX === null) return; const dx = e.changedTouches[0].clientX - touchX; touchX = null;
+  if (Math.abs(dx) > 50) { e.preventDefault(); dx < 0 ? next() : back(); }
+});
+function back() {
+  if (step < 0) return;
+  const target = step - 1; stage.classList.add('instant'); INSTANT = true; reset(); while (step < target) next(); INSTANT = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => stage.classList.remove('instant')));
+  navUpdate();
+}
+stage.addEventListener('click', e => { if (!e.target.closest('a')) next(); });
+addEventListener('keydown', e => {
+  if (e.target.closest('button, a') && [' ', 'Enter'].includes(e.key)) return;
+  // presentation clickers send PageDown/PageUp or arrow keys; their black-screen button sends B or a period
+  if ([' ', 'Enter', 'PageDown', 'ArrowRight', 'ArrowDown'].includes(e.key)) { e.preventDefault(); next(); }
+  else if (['Backspace', 'PageUp', 'ArrowLeft', 'ArrowUp'].includes(e.key)) { e.preventDefault(); back(); }
+  else if (e.key === 'b' || e.key === 'B' || e.key === '.') { document.body.classList.toggle('blackout'); }
+  else if (e.key === 'r' || e.key === 'R') reset();
+});
+
+// PEAK rain colorbar: one swatch per bin from 0.1 mm/h, ticks at bin edges as in the paper figures
+const legendReady = fetch(asset('frames/rain_legend.json')).then(r => r.json()).then(L => {
+  LEG = { edges: L.edges, rgb: L.colors.map(c => [1, 3, 5].map(o => parseInt(c.slice(o, o + 2), 16))) };
+  $('#rfticks').innerHTML = '<i></i>'.repeat(31);
+  $('#cbar').innerHTML = L.colors.map(c => `<i style="background:${c}"></i>`).join('');
+  $('#cticks').innerHTML = L.ticks.map(t => `<span style="left:${L.edges.indexOf(t) * 20}px">${t}</span>`).join('')
+    + `<span style="left:${L.colors.length * 20 + 34}px">mm/h</span>`;
+});
+
+Promise.all([
+  fetch(asset('frames/meta.json')).then(r => r.json()),
+  fetch(asset('frames/lineup_land.json')).then(r => r.json()),
+  legendReady,
+]).then(([m, world]) => {
+  meta = m;
+  return (async () => {
+    bm = { wv: await loadBitmaps('wv_', m.ir_frames, colorWV), ir: await loadBitmaps('ir_', m.ir_frames, colorCloud), im: await loadBitmaps('rain_', m.imerg_frames, colorRain),
+      hsp: await loadBitmaps('hsp_', m.hsp_frames, colorRain), cover: (await loadBitmaps('ke_cover', 1, colorMask))[0],
+      traj: await loadBitmaps('traj_', m.traj_frames, colorRain), ragasa: {} };
+    for (const k of ['imerg', 'all', 'nodem', 'ir105']) bm.ragasa[k] = await loadBitmaps(`ragasa_${k}_`, m.ragasa_times.length, colorRain);
+    return world;
+  })();
+}).then(world => {
+  showFrame(0);
+  buildRadar(); buildDeck(); buildPaths();
+  buildLineup(world);
+  $('#loading').remove();
+  reset();
+  const jump = /#step=(-?\d+)/.exec(location.hash); if (jump && +jump[1] >= 0) { step = +jump[1] + 1; back(); }
+  navUpdate();
+  if (step < 0 && !inFullscreen()) { $('#hint').classList.add('in'); navWake(); }
+  requestAnimationFrame(render);
+});
+</script>
+</body>
+</html>
