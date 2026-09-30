@@ -492,20 +492,33 @@ const colorMask = d => { for (let p = 0; p < d.length; p += 4) { d[p + 3] = d[p]
 const colorWV = d => { for (let p = 0; p < d.length; p += 4) { const a = d[p] / 255; d[p] = 190; d[p + 1] = 214; d[p + 2] = 255; d[p + 3] = a * 190; } };
 const colorRain = d => { for (let p = 0; p < d.length; p += 4) { const k = d[p];
   if (!k) { d[p + 3] = 0; continue; } const c = LEG.rgb[k - 1]; d[p] = c[0]; d[p + 1] = c[1]; d[p + 2] = c[2]; d[p + 3] = 225; } };
-async function loadBitmaps(prefix, n, colorize) {
-  const out = [], cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
-  for (let i = 0; i < n; i++) {
+// frames load a few at a time (one at a time is far too slow over the web: ~150 round trips); each must still decode
+// fully, and a failed or truncated one is retried, never shown
+let framesTotal = 0, framesDone = 0;
+const LIMIT = 8, queue = []; let active = 0;
+const limited = job => new Promise((ok, fail) => {
+  const run = () => { active++; job().then(ok, fail).finally(() => { active--; if (queue.length) queue.shift()(); }); };
+  active < LIMIT ? run() : queue.push(run);
+});
+const loadCv = document.createElement('canvas'), loadCx = loadCv.getContext('2d', { willReadFrequently: true });
+function loadBitmaps(prefix, n, colorize) {
+  framesTotal += n;
+  return Promise.all([...Array(n)].map((_, i) => limited(async () => {
     const src = n === 1 && !prefix.endsWith('_') ? `frames/${prefix}.webp` : `frames/${prefix}${String(i).padStart(2, '0')}.webp`;
     for (let tries = 0; ; tries++) {
       try {
-        const bmp = await createImageBitmap(await (await fetch(asset(src), { cache: 'no-store' })).blob());
-        cv.width = bmp.width; cv.height = bmp.height; cx.drawImage(bmp, 0, 0);
-        const img = cx.getImageData(0, 0, bmp.width, bmp.height); colorize(img.data); out.push(await createImageBitmap(img)); break;
-      } catch (e) { if (tries >= 4) throw new Error(`frame failed to load: ${src}`); await new Promise(r => setTimeout(r, 200)); }
+        const res = await fetch(asset(src)), blob = await res.blob(), len = +res.headers.get('content-length');
+        if (!res.ok || (len && !res.headers.get('content-encoding') && blob.size !== len)) throw new Error('incomplete');   // a cut-off frame is retried
+        const bmp = await createImageBitmap(blob);
+        // drawing, reading, and colouring happen in one synchronous run, so tasks can share the canvas
+        loadCv.width = bmp.width; loadCv.height = bmp.height; loadCx.drawImage(bmp, 0, 0);
+        const img = loadCx.getImageData(0, 0, bmp.width, bmp.height); colorize(img.data);
+        const out = await createImageBitmap(img); framesDone++; loadingText(); return out;
+      } catch (e) { if (tries >= 4) throw new Error(`frame failed to load: ${src}`); await new Promise(r => setTimeout(r, 300)); }
     }
-  }
-  return out;
+  })));
 }
+const loadingText = () => { const l = $('#loading'); if (l) l.textContent = `Loading ${Math.round(100 * framesDone / Math.max(framesTotal, 1))}%`; };
 const fx = $('#fx'), fctx = fx.getContext('2d');
 const off = document.createElement('canvas'); off.width = W; off.height = H; const octx = off.getContext('2d');
 function radarRect() { const [ax, ay] = toStage(RADAR.x0, RADAR.y0), [bx, by] = toStage(RADAR.x0 + RADAR.size, RADAR.y0 + RADAR.size); return [ax, ay, bx - ax, by - ay]; }
@@ -742,6 +755,7 @@ const QP = [
 const QX = [140, 560, 980, 1400];
 let qCore = { x: .5, y: .5 }, rIdx = 5, rLast = 0;
 function drawQRow() {   // all four panels show the same half-hourly interval
+  if (!bm.ragasa) return;
   document.querySelectorAll('.qp canvas').forEach((cv, j) => { const c = cv.getContext('2d'); c.imageSmoothingEnabled = false;
     c.clearRect(0, 0, 512, 512); c.drawImage(bm.ragasa[QP[j].key][rIdx], 0, 0, 512, 512); });
   $('#rtime').textContent = 'Typhoon Ragasa · ' + new Date(meta.ragasa_times[rIdx] * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
@@ -1055,13 +1069,17 @@ Promise.all([
   legendReady,
 ]).then(([m, world]) => {
   meta = m;
-  return (async () => {
-    bm = { wv: await loadBitmaps('wv_', m.ir_frames, colorWV), ir: await loadBitmaps('ir_', m.ir_frames, colorCloud), im: await loadBitmaps('rain_', m.imerg_frames, colorRain),
-      hsp: await loadBitmaps('hsp_', m.hsp_frames, colorRain), cover: (await loadBitmaps('ke_cover', 1, colorMask))[0],
-      traj: await loadBitmaps('traj_', m.traj_frames, colorRain), ragasa: {} };
-    for (const k of ['imerg', 'all', 'nodem', 'ir105']) bm.ragasa[k] = await loadBitmaps(`ragasa_${k}_`, m.ragasa_times.length, colorRain);
+  // the deck opens once the frames for slides 1 to 5 are in; the model and typhoon frames (slides 6 and 8 on) follow
+  // in the background, and their panels fill in as soon as they arrive
+  const early = Promise.all([loadBitmaps('wv_', m.ir_frames, colorWV), loadBitmaps('ir_', m.ir_frames, colorCloud), loadBitmaps('rain_', m.imerg_frames, colorRain),
+    loadBitmaps('hsp_', m.hsp_frames, colorRain), loadBitmaps('ke_cover', 1, colorMask)]);
+  return early.then(([wv, ir, im, hsp, cover]) => {
+    bm = { wv, ir, im, hsp, cover: cover[0], traj: null, ragasa: null };
+    const keys = ['imerg', 'all', 'nodem', 'ir105'];
+    window.framesReady = Promise.all([loadBitmaps('traj_', m.traj_frames, colorRain), ...keys.map(k => loadBitmaps(`ragasa_${k}_`, m.ragasa_times.length, colorRain))])
+      .then(([traj, ...rg]) => { bm.traj = traj; bm.ragasa = Object.fromEntries(keys.map((k, j) => [k, rg[j]])); RF.drawn = -1; if ($('#qrow').children.length) drawQRow(); });
     return world;
-  })();
+  });
 }).then(world => {
   showFrame(0);
   buildRadar(); buildDeck(); buildPaths();
@@ -1072,6 +1090,8 @@ Promise.all([
   navUpdate();
   if (step < 0 && !inFullscreen()) { $('#hint').classList.add('in'); navWake(); }
   requestAnimationFrame(render);
+}).catch(err => {   // say so instead of sitting on the loading message
+  console.error(err); const l = $('#loading'); if (l) l.textContent = 'The slides could not load. Please check your connection and reload the page.';
 });
 </script>
 </body>
