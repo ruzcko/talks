@@ -481,7 +481,7 @@ function lineupView(n) {   // frame items 0..n at true scale, text column on the
 }
 
 // ---------- frame loops: one timer drives every layer ----------
-let meta, bm = { ir: [], im: [] }, fi = 0, lastStep = 0, hold = 0;
+let meta, bm = {}, fi = 0, lastStep = 0, hold = 0;   // frame sets arrive in stages; each is null until loaded
 const FRAME_MS = 420, HOLD_MS = 1400;
 // every frame is decoded once into an ImageBitmap and drawn to a canvas, so playback never waits on decoding
 // frames load one at a time and each must decode fully; a truncated response is retried, never shown
@@ -513,17 +513,17 @@ function loadBitmaps(prefix, n, colorize) {
         // drawing, reading, and colouring happen in one synchronous run, so tasks can share the canvas
         loadCv.width = bmp.width; loadCv.height = bmp.height; loadCx.drawImage(bmp, 0, 0);
         const img = loadCx.getImageData(0, 0, bmp.width, bmp.height); colorize(img.data);
-        const out = await createImageBitmap(img); framesDone++; loadingText(); return out;
+        const out = await createImageBitmap(img); framesDone++; return out;
       } catch (e) { if (tries >= 4) throw new Error(`frame failed to load: ${src}`); await new Promise(r => setTimeout(r, 300)); }
     }
   })));
 }
-const loadingText = () => { const l = $('#loading'); if (l) l.textContent = `Loading ${Math.round(100 * framesDone / Math.max(framesTotal, 1))}%`; };
 const fx = $('#fx'), fctx = fx.getContext('2d');
 const off = document.createElement('canvas'); off.width = W; off.height = H; const octx = off.getContext('2d');
 function radarRect() { const [ax, ay] = toStage(RADAR.x0, RADAR.y0), [bx, by] = toStage(RADAR.x0 + RADAR.size, RADAR.y0 + RADAR.size); return [ax, ay, bx - ax, by - ay]; }
 function drawLoops() {
   fctx.clearRect(0, 0, W, H);
+  if (!bm.ir) return;   // the map loops are still loading
   const [ax, ay] = toStage(-2560, -2560), [bx, by] = toStage(2560, 2560), w = bx - ax, h = by - ay;
   const im = bm.im[Math.min(bm.im.length - 1, Math.floor(fi / 3))];
   if (st.ir > .01) { fctx.globalAlpha = st.ir; fctx.imageSmoothingEnabled = true; fctx.drawImage(bm.ir[fi], ax, ay, w, h); }
@@ -553,7 +553,7 @@ function render(now) {
   }
   if (slide >= 8 && $('#qrow').children.length && now - rLast > 650) { rIdx = (rIdx + 1) % meta.ragasa_times.length; drawQRow(); rLast = now; }
   if (now - lastStep > FRAME_MS + hold) {
-    fi = (fi + 1) % bm.ir.length; hold = fi === bm.ir.length - 1 ? HOLD_MS : 0;
+    fi = (fi + 1) % meta.ir_frames; hold = fi === meta.ir_frames - 1 ? HOLD_MS : 0;
     showFrame(fi); lastStep = now;
   }
   const h = cam.w * H / W;
@@ -1069,17 +1069,19 @@ Promise.all([
   legendReady,
 ]).then(([m, world]) => {
   meta = m;
-  // the deck opens once the frames for slides 1 to 5 are in; the model and typhoon frames (slides 6 and 8 on) follow
-  // in the background, and their panels fill in as soon as they arrive
-  const early = Promise.all([loadBitmaps('wv_', m.ir_frames, colorWV), loadBitmaps('ir_', m.ir_frames, colorCloud), loadBitmaps('rain_', m.imerg_frames, colorRain),
-    loadBitmaps('hsp_', m.hsp_frames, colorRain), loadBitmaps('ke_cover', 1, colorMask)]);
-  return early.then(([wv, ir, im, hsp, cover]) => {
-    bm = { wv, ir, im, hsp, cover: cover[0], traj: null, ragasa: null };
-    const keys = ['imerg', 'all', 'nodem', 'ir105'];
-    window.framesReady = Promise.all([loadBitmaps('traj_', m.traj_frames, colorRain), ...keys.map(k => loadBitmaps(`ragasa_${k}_`, m.ragasa_times.length, colorRain))])
-      .then(([traj, ...rg]) => { bm.traj = traj; bm.ragasa = Object.fromEntries(keys.map((k, j) => [k, rg[j]])); RF.drawn = -1; if ($('#qrow').children.length) drawQRow(); });
-    return world;
-  });
+  // three stages, queued in this order so the earliest slides come first: the title background opens the deck; the
+  // map loops (slides 2 to 5) and then the model and typhoon frames (slides 6 and 8 on) follow while it is shown,
+  // and each panel fills in as soon as its frames arrive
+  const title = loadBitmaps('wv_', m.ir_frames, colorWV);
+  const maps = Promise.all([loadBitmaps('ir_', m.ir_frames, colorCloud), loadBitmaps('rain_', m.imerg_frames, colorRain),
+    loadBitmaps('hsp_', m.hsp_frames, colorRain), loadBitmaps('ke_cover', 1, colorMask)])
+    .then(([ir, im, hsp, cover]) => { Object.assign(bm, { ir, im, hsp, cover: cover[0] }); });
+  const keys = ['imerg', 'all', 'nodem', 'ir105'];
+  const later = Promise.all([loadBitmaps('traj_', m.traj_frames, colorRain), ...keys.map(k => loadBitmaps(`ragasa_${k}_`, m.ragasa_times.length, colorRain))])
+    .then(([traj, ...rg]) => { bm.traj = traj; bm.ragasa = Object.fromEntries(keys.map((k, j) => [k, rg[j]])); RF.drawn = -1; if ($('#qrow').children.length) drawQRow(); });
+  window.framesReady = Promise.all([title, maps, later]);
+  framesReady.catch(err => { console.error(err); const n = $('#hint'); n.textContent = 'Some slides could not load. Please reload the page.'; n.classList.add('in'); });
+  return title.then(wv => { bm.wv = wv; return world; });
 }).then(world => {
   showFrame(0);
   buildRadar(); buildDeck(); buildPaths();
