@@ -862,7 +862,7 @@ function buildThr() {
       g += `<line class="grid" x1="${c.x0 + 40}" x2="${c.x0 + 60 + TW + 20}" y1="${y}" y2="${y}"/><text x="${c.x0 + 30}" y="${y + 7}" text-anchor="end">${v.toFixed(c.ymax < 1 ? 1 : 1)}</text>`; }
     g += `<line class="axis" x1="${c.x0 + 40}" x2="${c.x0 + 60 + TW + 20}" y1="${TY0 + TH}" y2="${TY0 + TH}"/>`;
     c.th.forEach((t, i) => { g += `<text x="${tx(c, i)}" y="${TY0 + TH + 34}" text-anchor="middle">${t}</text>`; });
-    g += `<text x="${c.x0 + 60 + TW / 2}" y="${TY0 + TH + 72}" text-anchor="middle">Rain rate, mm/h</text>`;
+    g += `<text x="${c.x0 + 60 + TW / 2}" y="${TY0 + TH + 72}" text-anchor="middle">Threshold, mm/h</text>`;
     c.v.forEach((vals, j) => {
       const d = vals.map((v, i) => `${i ? 'L' : 'M'}${tx(c, i)} ${ty(c, v)}`).join(' ');
       g += `<g class="cfg${j}"><path class="ln" d="${d}" stroke="${CFG_C[j]}" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>`
@@ -962,32 +962,31 @@ const STEPS = [
       caption('Step by step, the noise becomes a rainfall estimate, compared with IMERG.'); } },
   { slide: 7, run() { leaveModel(); deckStack(834, 520, .6); $('#legend').style.opacity = 1;
       $('#configs').classList.add('in'); setCfg(0);
-      caption('Input ablation*: we switch inputs off and compare the results.');
-      foot('*Inputs are switched off at test time in one trained model; the model is not retrained.'); } },
+      caption('Input ablation: we switch inputs off and compare the results.'); foot(''); } },
   { slide: 7, run() { setCfg(1); caption('Without terrain: the terrain input is switched off.'); } },
   { slide: 7, run() { setCfg(2); caption('Infrared only: only IR105 stays on; the other channels and terrain are switched off.'); } },
   { slide: 7, run() { $('#metrics').classList.add('in');
-      caption('Each configuration is scored against IMERG on three measures.');
-      foot('*Inputs are switched off at test time in one trained model; the model is not retrained.\nCSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.'); } },
+      caption('Each configuration is scored against IMERG with three metrics.');
+      foot('CSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.'); } },
   { slide: 8, run() { leaveAblation(); buildQRow(); setCfg(0); deckStack(750, 805, .22); qShow(0); $('#rtime').classList.add('in');
       capWidth('560px'); caption('Typhoon Ragasa, 21 September 2025. Left: IMERG, the reference.');
-      foot('A test case, 07:00 to 12:30 UTC. All model panels come from the same trained model.'); } },
+      foot('A test case, 07:00 to 12:30 UTC.'); } },
   { slide: 8, run() { qShow(1); $('#deck').style.opacity = 0; caption('All variables: the eyewall and rain bands come through.'); } },
   { slide: 8, run() { qShow(2); caption('Without terrain: the structure mostly holds.'); } },
   { slide: 8, run() { qShow(3); caption('Infrared only: the typhoon’s structure falls apart.'); } },
   { slide: 8, run() { qZoom(Q_ZOOM); caption('A closer look: the eyewall and spiral rain bands.'); } },
   { slide: 9, run() { capWidth(''); qZoom(1, [0]); qBox(true); qCompact(true); buildCharts(); $('#clab').classList.add('in'); showCol(1);
       caption('Average scores over 12,759 test scenes from 2025, with all variables.');
-      foot('Higher is better for all three. Percentages are the change from all variables. CSI and FSS are averaged over several rain-rate thresholds.'); } },
+      foot('Higher is better for all three metrics. Percentages are the change from all variables. CSI and FSS are averaged over several thresholds.'); } },
   { slide: 9, run() { showCol(2); caption('Without terrain, every score drops.'); } },
   { slide: 9, run() { showCol(3); caption('With infrared only, the largest drop: event detection (CSI) falls by about half.'); } },
   { slide: 10, run() { document.querySelectorAll('.ccol,.caxis').forEach(e => { e.style.opacity = 0; });
       buildThr(); $('#thr').classList.add('in'); drawCfg(2);
-      caption('Infrared only is lowest at every rain rate.');
-      foot('CSI and FSS at each rain-rate threshold. FSS uses 80 × 80 km neighborhoods.'); } },
+      caption('Infrared only is lowest at every threshold.');
+      foot('CSI and FSS at each threshold, in mm/h. FSS uses 80 × 80 km neighborhoods.'); } },
   { slide: 10, run() { drawCfg(1); caption('Without terrain: higher, but still below all variables.'); } },
   { slide: 10, run() { drawCfg(0); $('#thr').classList.add('best'); document.querySelectorAll('#thr .call').forEach(c => c.classList.add('on'));
-      caption('All variables: best at every rain rate.'); } },
+      caption('All variables: best at every threshold.'); } },
   { slide: 11, run() { $('#thr').classList.remove('in'); $('#rtime').classList.remove('in'); document.querySelectorAll('#qrow > *').forEach(e => e.classList.remove('in')); qBox(false);
       chainReturn(); takeaway(0); caption(''); foot(''); } },
   { slide: 11, run() { takeaway(1); } },
