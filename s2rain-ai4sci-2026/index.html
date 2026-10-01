@@ -918,7 +918,7 @@ const STEPS = [
       foot(`GK2A (GEO-KOMPSAT-2A) is run by the ${SRC.nmsc}.\nShown here: its infrared images of clouds.`, '780px'); } },
   { slide: 3, run() { tween(st, 'imOut', 1, 1600, 200); tween(st, 'dim', 0, 1600, 200); 
       caption('IMERG, a satellite rainfall estimate, shows the storms beyond the radar edge.');
-      foot(`IMERG (Integrated Multi-satellitE Retrievals for GPM, by ${SRC.imerg}) estimates rainfall every\n30 minutes from microwave and infrared satellites, calibrated with rain gauges.`, '780px'); } },
+      foot(`IMERG (Integrated Multi-satellitE Retrievals for GPM) is a ${SRC.imerg} rainfall product,\nmade every 30 minutes from microwave and infrared satellites and rain gauges.`, '780px'); } },
   { slide: 3, run() { tween(st, 'ir', .55, 1200); caption('How much rainfall can geostationary satellites recover across East Asia, and which inputs matter?', true); } },
   { slide: 4, run() { tween(st, 'map', .08, 1200); clock(false);
       ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach((id, n) => INSTANT ? $('#' + id).classList.add('in') : setTimeout(() => $('#' + id).classList.add('in'), 400 + n * 200));
@@ -993,7 +993,7 @@ const STEPS = [
   { slide: 11, run() { takeaway(1); } },
   { slide: 11, run() { takeaway(2); for (const id of ['n3', 'n4']) $('#' + id).classList.add('ongoing');
       $('#goal').classList.add('lit');
-      caption('PEAK* coming soon on GitHub and Hugging Face.'); foot(PEAK_NOTE); } },
+      caption('PEAK* coming soon on GitHub and Hugging\u00a0Face.'); foot(PEAK_NOTE); } },
   { slide: 12, run() { ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach(id => $('#' + id).classList.remove('in')); foot('');
       document.querySelectorAll('#takeaways div').forEach(d => d.classList.remove('in')); caption('');
       $('#endSlide').classList.add('in'); $('#wv').classList.add('in'); } },
