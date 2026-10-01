@@ -258,7 +258,7 @@
     color: var(--muted); z-index: 10; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .6s; }
   #hint.in { opacity: 1; }
   #hint .rot { display: none; }
-  @media (orientation: portrait) and (max-width: 700px) { #hint { white-space: normal; width: 80vw; text-align: center; } #hint .rot { display: inline; } }
+  @media (orientation: portrait) and (max-width: 700px) { #hint { white-space: normal; width: 80vw; text-align: center; } #hint .rot { display: inline; } #hint .kbd { display: none; } }
   /* web navigation: shown on mouse movement or touch, hidden when idle and in full screen */
   #nav { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 4px;
     padding: 4px; border: 1px solid #2a3947; border-radius: 999px; background: rgba(5,8,12,.78);
@@ -273,8 +273,8 @@
 </style>
 </head>
 <body>
-<div id="hint">Click, tap, or use the arrow keys to move through the slides<span class="rot"><br>Turn your phone sideways for a larger view</span></div>
-<div id="nav" aria-label="Slide navigation"><button id="prev" aria-label="Previous">‹</button><span id="navcount"></span><button id="nextBtn" aria-label="Next">›</button><button id="fs" aria-label="Full screen">⛶</button></div>
+<div id="hint">Click, tap, or use the arrow keys to move through the slides<span class="kbd">. Press F for full screen</span><span class="rot"><br>Turn your phone sideways for a larger view</span></div>
+<div id="nav" aria-label="Slide navigation"><button id="prev" aria-label="Previous">‹</button><span id="navcount"></span><button id="nextBtn" aria-label="Next">›</button><button id="fs" aria-label="Full screen (F)" title="Full screen (F)">⛶</button></div>
 <div id="frame"><div id="stage">
   <svg id="base" class="cam" preserveAspectRatio="none">
     <g id="lineup"></g>
@@ -1030,7 +1030,10 @@ function navWake() {
 for (const ev of ['mousemove', 'touchstart']) addEventListener(ev, navWake, { passive: true });
 $('#prev').addEventListener('click', () => back());
 $('#nextBtn').addEventListener('click', () => next());
-$('#fs').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+const canFullscreen = !!document.documentElement.requestFullscreen;
+const toggleFullscreen = () => { if (canFullscreen) document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); };
+if (!canFullscreen) $('#fs').hidden = true;
+$('#fs').addEventListener('click', toggleFullscreen);
 // swipe on touch screens; a tap still advances through the stage's click
 let touchX = null;
 stage.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
@@ -1052,6 +1055,7 @@ addEventListener('keydown', e => {
   else if (['Backspace', 'PageUp', 'ArrowLeft', 'ArrowUp'].includes(e.key)) { e.preventDefault(); back(); }
   else if (e.key === 'b' || e.key === 'B' || e.key === '.') { document.body.classList.toggle('blackout'); }
   else if (e.key === 'r' || e.key === 'R') reset();
+  else if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey) toggleFullscreen();   // F: full screen on and off
 });
 
 // PEAK rain colorbar: one swatch per bin from 0.1 mm/h, ticks at bin edges as in the paper figures
