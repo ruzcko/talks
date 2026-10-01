@@ -966,8 +966,9 @@ const STEPS = [
   { slide: 7, run() { setCfg(1); caption('Without terrain: the terrain input is switched off.'); } },
   { slide: 7, run() { setCfg(2); caption('Infrared only: only IR105 stays on; the other channels and terrain are switched off.'); } },
   { slide: 7, run() { $('#metrics').classList.add('in');
-      caption('Each configuration is scored against IMERG with three metrics.');
-      foot('CSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.'); } },
+      caption('Each configuration is scored against IMERG with a suite of metrics; three are shown here.');
+      foot('CSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.\n'
+        + 'The full suite also includes error metrics (RMSE and MAE).'); } },
   { slide: 8, run() { leaveAblation(); buildQRow(); setCfg(0); deckStack(750, 805, .22); qShow(0); $('#rtime').classList.add('in');
       capWidth('560px'); caption('Typhoon Ragasa, 21 September 2025. Left: IMERG, the reference.');
       foot('A test case, 07:00 to 12:30 UTC.'); } },
