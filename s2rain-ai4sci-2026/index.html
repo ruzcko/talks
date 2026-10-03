@@ -447,10 +447,12 @@ function toStage(x, y) { const h = cam.w * H / W; return [(x - (cam.x - cam.w / 
 
 // ---------- lineup: benchmark radar domains, same scale ----------
 const FP = [
-  { name: 'SEVIR', dims: '384 km, US', country: 'US', w: 384, h: 384, color: 'var(--sevir)', ll: [-95.4, 29.8] },
-  { name: 'HKO-7', dims: '512 km, Hong Kong', country: 'Hong Kong', w: 512, h: 512, color: 'var(--hk)', ll: [114.17, 22.3] },
-  { name: 'MeteoNet', dims: '573 × 628 km, France', country: 'France', w: 573, h: 628, color: 'var(--meteo)', ll: [-1.922, 49.071] },
-  { name: 'KMA radar', dims: '1,024 km, Korea', country: 'Korea', w: 1024, h: 1024, color: 'var(--kr)', ll: [126.897, 35.727] },
+  // each box holds a real sample (frames/sample_<key>.webp, from make_samples.py); ll is the box centre for the land outline
+  { key: 'sevir', name: 'SEVIR', dims: '384 km, US', country: 'US', w: 384, h: 384, color: 'var(--sevir)', ll: [-103.5, 36.6] },   // the sample's storm, eastern New Mexico
+  // Shanghai Radar: 501 x 501 cells at 0.01 degrees (about 477 km east-west, 557 km north-south); no published georeferencing, so no land outline
+  { key: 'shanghai', name: 'Shanghai', dims: 'About 500 km, China', country: 'China', w: 477, h: 557, color: 'var(--hk)', ll: null },
+  { key: 'meteonet', name: 'MeteoNet', dims: '573 × 628 km, France', country: 'France', w: 573, h: 628, color: 'var(--meteo)', ll: [-1.922, 49.071] },
+  { key: 'korea', name: 'PEAK* Korea', dims: '1,024 km', country: '1,024 km', w: 1024, h: 1024, color: 'var(--peak)', ll: [126.897, 35.727] },
 ];
 let lineup = [];
 const GAP = 320;
@@ -465,6 +467,7 @@ function buildLineup(landPaths) {
     const g = el('g', {}, $('#lineup')), box = { x: x - d.w / 2, y: y - d.h / 2, width: d.w, height: d.h };
     el('rect', { ...box, fill: 'var(--ocean)' }, g);
     el('path', { class: 'land', d: landPaths[i], transform: `translate(${x} ${y})` }, g);
+    el('image', { ...box, href: asset(`frames/sample_${d.key}.webp`), preserveAspectRatio: 'none' }, g);   // smooth: these are drawn far smaller than their pixels
     el('rect', { ...box, class: 'fp', style: `color:${d.color};stroke:${d.color}` }, g);
     const lab = document.createElement('div'); lab.className = 'lbl'; lab.style.color = d.color;
     lab.innerHTML = `<b>${d.name}</b><span>${d.dims}</span>`; hud.appendChild(lab);
@@ -603,7 +606,7 @@ const foot = (t, w = '') => { const f = $('#foot'); if (t) f.innerHTML = t; f.st
 // sources open in a new tab, so a reader of the hosted deck can follow them without losing their place
 const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 const SRC = {
-  sevir: link('https://registry.opendata.aws/sevir/', 'SEVIR'), hko: link('https://arxiv.org/abs/1706.03458', 'HKO-7'),
+  sevir: link('https://registry.opendata.aws/sevir/', 'SEVIR'), shanghai: link('https://doi.org/10.1029/2019EA000812', 'Shanghai Radar'),
   meteonet: link('https://meteonet.umr-cnrm.fr/', 'MeteoNet'), kma: link('https://www.kma.go.kr/eng/', 'KMA'),
   nmsc: link('https://nmsc.kma.go.kr/enhome/html/main/main.do', 'KMA National Meteorological Satellite Center'),
   imerg: link('https://gpm.nasa.gov/data/imerg', 'NASA GPM'), dem: link('https://doi.org/10.5270/ESA-c5d3d65', 'Copernicus GLO-90'),
@@ -899,8 +902,8 @@ const STEPS = [
       if (n) camTo(lineupView(n), 1300);
       tween(lineup[n], 'dy', 0, 900, n ? 500 : 150); tween(lineup[n], 'op', 1, 700, n ? 500 : 150);
       if (!n) { capWidth('470px'); caption('Most AI nowcasting datasets are built from weather radar.');
-        foot(`Drawn to the same scale on Natural Earth coastlines. SEVIR samples 384 km patches across the US; one is shown.\n`
-          + `Sources: ${SRC.sevir} (US), ${SRC.hko} (Hong Kong), ${SRC.meteonet} (France), and the ${SRC.kma} radar network (Korea).`); } } })),
+        foot(`Real samples, same scale. Colors show rain rate, except SEVIR (VIL) and Shanghai (reflectivity). *PEAK is under review.\n`
+          + `Sources: ${SRC.sevir}, ${SRC.shanghai} (no published coordinates, so no coastline), ${SRC.meteonet}, and the ${SRC.kma} radar network.`, '1030px'); } } })),
   { slide: 2, run() { camTo(allFit(), 2200); tween(st, 'peak', 1, 1800, 900); tween(st, 'ea', 1, 1400, 1400);
       capWidth('470px'); caption('We introduce <span class="pk">PEAK*</span>: <b class="pk">P</b>recipitation over <b class="pk">E</b>ast <b class="pk">A</b>sia and <b class="pk">K</b>orea.'); stat(true);
       foot(PEAK_NOTE + '\nEast Asia: satellite images, satellite rainfall, and terrain. Korea adds radar, gauges, and lightning.'); } },
