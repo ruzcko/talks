@@ -448,11 +448,11 @@ function toStage(x, y) { const h = cam.w * H / W; return [(x - (cam.x - cam.w / 
 // ---------- lineup: benchmark radar domains, same scale ----------
 const FP = [
   // each box holds a real sample (frames/sample_<key>.webp, from make_samples.py); ll is the box centre for the land outline
-  { key: 'sevir', name: 'SEVIR', dims: '384 km, US', country: 'US', w: 384, h: 384, color: 'var(--sevir)', ll: [-103.5, 36.6] },   // the sample's storm, eastern New Mexico
+  { key: 'sevir', name: 'SEVIR', dims: '384 km, USA', country: 'USA', w: 384, h: 384, color: 'var(--sevir)', ll: [-98.38, 45.15] },   // the sample's storm, South Dakota (inland: the box is all land)
   // Shanghai Radar: 501 x 501 cells at 0.01 degrees (about 477 km east-west, 557 km north-south); no published georeferencing, so no land outline
   { key: 'shanghai', name: 'Shanghai', dims: 'About 500 km, China', country: 'China', w: 477, h: 557, color: 'var(--hk)', ll: null },
   { key: 'meteonet', name: 'MeteoNet', dims: '573 × 628 km, France', country: 'France', w: 573, h: 628, color: 'var(--meteo)', ll: [-1.922, 49.071] },
-  { key: 'korea', name: 'PEAK* Korea', dims: '1,024 km', country: '1,024 km', w: 1024, h: 1024, color: 'var(--peak)', ll: [126.897, 35.727] },
+  { key: 'korea', name: 'PEAK*', dims: '1,024 km, Korea', country: 'Korea', w: 1024, h: 1024, color: 'var(--peak)', ll: [126.897, 35.727] },
 ];
 let lineup = [];
 const GAP = 320;
@@ -902,10 +902,10 @@ const STEPS = [
       if (n) camTo(lineupView(n), 1300);
       tween(lineup[n], 'dy', 0, 900, n ? 500 : 150); tween(lineup[n], 'op', 1, 700, n ? 500 : 150);
       if (!n) { capWidth('470px'); caption('Most AI nowcasting datasets are built from weather radar.');
-        foot(`Real samples, same scale. Colors show rain rate, except SEVIR (VIL) and Shanghai (reflectivity). *PEAK is under review.\n`
-          + `Sources: ${SRC.sevir}, ${SRC.shanghai} (no published coordinates, so no coastline), ${SRC.meteonet}, and the ${SRC.kma} radar network.`, '1030px'); } } })),
+        foot(`Real samples at the same scale, each in its own colors: VIL for SEVIR, reflectivity for Shanghai, rainfall for MeteoNet and PEAK*.\n`
+          + `Sources: ${SRC.sevir}, ${SRC.shanghai} (no published coordinates, so no coastline), ${SRC.meteonet}, ${SRC.kma}. *PEAK is under review.`, '1030px'); } } })),
   { slide: 2, run() { camTo(allFit(), 2200); tween(st, 'peak', 1, 1800, 900); tween(st, 'ea', 1, 1400, 1400);
-      capWidth('470px'); caption('We introduce <span class="pk">PEAK*</span>: <b class="pk">P</b>recipitation over <b class="pk">E</b>ast <b class="pk">A</b>sia and <b class="pk">K</b>orea.'); stat(true);
+      capWidth('470px'); caption('We introduce the <span class="pk">PEAK*</span> dataset for deep learning applications: <b class="pk">P</b>recipitation over <b class="pk">E</b>ast <b class="pk">A</b>sia and <b class="pk">K</b>orea.'); stat(true);
       foot(PEAK_NOTE + '\nEast Asia: satellite images, satellite rainfall, and terrain. Korea adds radar, gauges, and lightning.'); } },
   { slide: 2, run() { stat(false); tween(st, 'lineup', 0, 900); tween(st, 'shade', 1, 1200);
       camTo(rightFit((RB.x0 + RB.x1) / 2, (RB.y0 + RB.y1) / 2, Math.max(RB.x1 - RB.x0, RB.y1 - RB.y0), (RB.y1 - RB.y0) * 1.24), 2600); tween(st, 'imIn', 1, 1200, 1600);
@@ -931,7 +931,7 @@ const STEPS = [
   { slide: 5, run() { cls('.node,.arrow,.goal', 'in', false);
       tween(st, 'map', 1, 1200, 300); tween(st, 'imOut', 0, 900); tween(st, 'imIn', 0, 900); tween(st, 'edge', 0, 900);   // back to the satellite view, clouds only
       camTo(satView(), 1600);
-      caption('We curated PEAK* for precipitation research. For rainfall retrieval, we take four GK2A infrared and water-vapor channels, plus terrain.');
+      caption('We curated the PEAK* dataset for precipitation research. For rainfall retrieval, we take four GK2A infrared and water-vapor channels, plus terrain.');
       foot(PEAK_NOTE + '\n' + CH_NOTE); } },
   { slide: 5, run() {
       tween(st, 'map', 0, 700, 200);
