@@ -176,7 +176,7 @@
   .mini .mi { position: absolute; left: -256px; top: -256px; width: 512px; height: 512px; transform-style: preserve-3d;
     transform: scale3d(.22, .22, .22) rotateX(56deg) rotateZ(-40deg); }
   .mini .card { transition: none; }
-  #rtime { position: absolute; right: 140px; top: 150px; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .6s; }
+  #rtime { position: absolute; right: 140px; top: 72px; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .6s; }
   #rtime.in { opacity: 1; }
   /* slide 9: score columns under each map */
   .ccol { position: absolute; top: 566px; width: 250px; transition: opacity .5s; }
@@ -595,7 +595,7 @@ function setSlide(n) {
   if (slide === n) return; slide = n;
   const S = { 2: ['Why satellites?', 'Current AI datasets and benchmarks'], 3: ['Why satellites?', 'What satellites can see'],
     4: ['Development pipeline', 'From data to rainfall maps'], 5: ['The task: rainfall retrieval', 'From satellite imagery to rainfall'],
-    1: ['', ''], 12: ['', ''], 6: ['Model', 'Conditional rectified flow*'], 11: ['Takeaways', 'Rainfall beyond the radar'], 7: ['Input ablation', 'Which inputs matter?'], 8: ['Results', 'What the ablation looks like'], 9: ['Results', 'Overall scores'], 10: ['Results', 'By rain intensity'] }[n];
+    1: ['', ''], 12: ['', ''], 6: ['Model', 'Conditional rectified flow*'], 11: ['Takeaways', 'Rainfall beyond the radar'], 7: ['Input ablation', 'Which inputs matter?'], 8: ['Results', 'Infrared only loses the typhoon’s structure'], 9: ['Results', 'Infrared only halves event detection'], 10: ['Results', 'All variables score best at every threshold'] }[n];
   swap($('#kicker'), S[0]); swap($('#headline'), S[1]);
 }
 const caption = (t, take = false) => swap($('#caption'), t, take ? 'take' : '');
@@ -609,7 +609,7 @@ const SRC = {
   sevir: link('https://registry.opendata.aws/sevir/', 'SEVIR'), shanghai: link('https://doi.org/10.1029/2019EA000812', 'Shanghai Radar'),
   meteonet: link('https://meteonet.umr-cnrm.fr/', 'MeteoNet'), kma: link('https://www.kma.go.kr/eng/', 'KMA'),
   nmsc: link('https://nmsc.kma.go.kr/enhome/html/main/main.do', 'KMA National Meteorological Satellite Center'),
-  imerg: link('https://gpm.nasa.gov/data/imerg', 'NASA GPM'), dem: link('https://doi.org/10.5270/ESA-c5d3d65', 'Copernicus GLO-90'),
+  imerg: link('https://gpm.nasa.gov/data/imerg', 'GPM'), dem: link('https://doi.org/10.5270/ESA-c5d3d65', 'Copernicus GLO-90'),
   rf: link('https://arxiv.org/abs/2209.03003', 'Flow Straight and Fast'),
 };
 const PEAK_NOTE = '*PEAK is under review; public release planned.';
@@ -909,7 +909,7 @@ const STEPS = [
       foot(PEAK_NOTE + '\nEast Asia: satellite images, satellite rainfall, and terrain. Korea adds radar, gauges, and lightning.'); } },
   { slide: 2, run() { stat(false); tween(st, 'lineup', 0, 900); tween(st, 'shade', 1, 1200);
       camTo(rightFit((RB.x0 + RB.x1) / 2, (RB.y0 + RB.y1) / 2, Math.max(RB.x1 - RB.x0, RB.y1 - RB.y0), (RB.y1 - RB.y0) * 1.24), 2600); tween(st, 'imIn', 1, 1200, 1600);
-      capWidth(''); caption('Korea’s radar rainfall during the heavy rain of 17 July 2025.');
+      capWidth(''); caption('Korea’s radar rainfall on 17 July 2025, a day of heavy rainfall.');
       swap($('#headline'), 'The limits of radar coverage'); clock(true); $('#cnote').textContent = '';
       foot(`Radar rainfall: the ${SRC.kma} composite of Korea’s national radar network.`); } },
   { slide: 2, run() { tween(st, 'edge', 1, 900, 300); tween(st, 'dim', .72, 1400, 500);
@@ -921,7 +921,7 @@ const STEPS = [
       foot(`GK2A (GEO-KOMPSAT-2A) is run by the ${SRC.nmsc}.\nShown here: its infrared images of clouds.`, '780px'); } },
   { slide: 3, run() { tween(st, 'imOut', 1, 1600, 200); tween(st, 'dim', 0, 1600, 200); 
       caption('IMERG, a satellite rainfall estimate, shows the storms beyond the radar edge.');
-      foot(`IMERG (Integrated Multi-satellitE Retrievals for GPM) is a ${SRC.imerg} rainfall product,\nmade every 30 minutes from microwave and infrared satellites and rain gauges.`, '780px'); } },
+      foot(`IMERG: Integrated Multi-satellitE Retrievals for ${SRC.imerg} (Global Precipitation Measurement).\nA NASA rainfall product, made every 30 minutes from satellites and rain gauges.`, '780px'); } },
   { slide: 3, run() { tween(st, 'ir', .55, 1200); caption('How much rainfall can geostationary satellites recover across East Asia, and which inputs matter?', true); } },
   { slide: 4, run() { tween(st, 'map', .08, 1200); clock(false);
       ['n1', 'a1', 'n2', 'a2', 'n3', 'a3', 'n4', 'goal'].forEach((id, n) => INSTANT ? $('#' + id).classList.add('in') : setTimeout(() => $('#' + id).classList.add('in'), 400 + n * 200));
@@ -931,7 +931,7 @@ const STEPS = [
   { slide: 5, run() { cls('.node,.arrow,.goal', 'in', false);
       tween(st, 'map', 1, 1200, 300); tween(st, 'imOut', 0, 900); tween(st, 'imIn', 0, 900); tween(st, 'edge', 0, 900);   // back to the satellite view, clouds only
       camTo(satView(), 1600);
-      caption('We curated the PEAK* dataset for precipitation research. For rainfall retrieval, we take four GK2A infrared and water-vapor channels, plus terrain.');
+      caption('We curated the PEAK* dataset for rainfall research. For rainfall retrieval, we take four GK2A infrared and water-vapor channels, plus terrain.');
       foot(PEAK_NOTE + '\n' + CH_NOTE); } },
   { slide: 5, run() {
       tween(st, 'map', 0, 700, 200);
@@ -939,18 +939,18 @@ const STEPS = [
       stage.classList.add('instant'); deckFromMap(); void $('#deckInner').offsetWidth; if (!wasInstant) stage.classList.remove('instant');
       $('#deck').style.opacity = 1;
       INSTANT ? deckRow(1) : setTimeout(() => deckRow(1), 350);
-      caption('IR105 sees cloud-top temperature: colder, taller clouds tend to rain harder.'); foot(CH_NOTE); } },
+      caption('IR105 sees cloud-top temperature: colder, taller clouds tend to bring heavier rainfall.'); foot(CH_NOTE); } },
   ...[
-    'IR123, compared with IR105, separates thin high cloud from deep rain clouds.',
+    'IR123, compared with IR105, separates thin high cloud from deep clouds that produce rainfall.',
     'WV063 tracks moisture high in the atmosphere, where deep storms reach.',
-    'WV073 tracks moisture in the middle atmosphere that feeds the rain below.',
-    'Terrain matters too: mountains lift moist air and shape where rain falls.',
+    'WV073 tracks moisture in the middle atmosphere that feeds the rainfall below.',
+    'Terrain matters too: mountains lift moist air and shape where rainfall occurs.',
   ].map((t, j) => ({ slide: 5, run() { deckRow(j + 2); caption(t);
       foot(j === 3 ? `${CH_NOTE}\nTerrain: ${SRC.dem} elevation, resampled to the 10 km grid.` : CH_NOTE); } })),
   { slide: 5, run() { deckRow(5, true);
-      caption('IMERG gives rainfall every 30 minutes and GK2A an image every 10, so each IMERG half hour is paired with the three GK2A images taken in it.'); } },
+      caption('IMERG gives one rainfall estimate every 30 minutes. GK2A takes an image every 10 minutes. We pair each estimate with the three images from the same half hour.'); } },
   { slide: 5, run() { deckStack(STACK_MID.x, STACK_MID.y, STACK_MID.k); $('#legend').style.opacity = 1;
-      caption('Stacked together, 12 satellite images plus terrain form one input from the PEAK* dataset.'); foot(PEAK_NOTE); } },
+      caption('We stack 12 satellite images and the terrain map into one input from the PEAK* dataset.'); foot(PEAK_NOTE); } },
   { slide: 5, run() { deckStack(STACK.x, STACK.y, STACK.k);
       // the target sits right of the stack, its label clear of the headline; the arrow spans the gap
       Object.assign($('#target').style, { left: '1100px', top: '300px', width: '660px', height: '660px' });
@@ -958,7 +958,7 @@ const STEPS = [
       $('#flow').classList.add('in'); $('#target').classList.add('in');
       caption('The task: estimate the IMERG rainfall for that same half hour, on a 10 km grid across East Asia.'); } },
   { slide: 6, run() { makeWay(); rfStep(0); foot(`*Rectified flow: Liu, Gong & Liu, ${SRC.rf} (ICLR 2023). The in-between states are shown for illustration.`);
-      caption('The model starts from random noise and is guided by the satellite stack at every step.'); } },
+      caption('The model starts from random noise. At each step, the satellite inputs guide it.'); } },
   { slide: 6, run() { rfTimers.forEach(clearTimeout); rfTimers = [];
       const end = () => { RF.k = 32; };   // the frozen paper prediction, not another solver step
       if (INSTANT) { rfStep(31); end(); } else { for (let k = 0; k <= 31; k++) rfTimers.push(setTimeout(() => rfStep(k), k * 150)); rfTimers.push(setTimeout(end, 32 * 150)); }
@@ -969,28 +969,28 @@ const STEPS = [
   { slide: 7, run() { setCfg(1); caption('Without terrain: the terrain input is switched off.'); } },
   { slide: 7, run() { setCfg(2); caption('Infrared only: only IR105 stays on; the other channels and terrain are switched off.'); } },
   { slide: 7, run() { $('#metrics').classList.add('in');
-      caption('Each configuration is scored against IMERG with a suite of metrics; three are shown here.');
+      caption('We score each configuration against IMERG with a set of metrics. This slide shows three.');
       foot('CSI: critical success index. FSS: fractions skill score. SSIM: structural similarity index. For all three, 1 is perfect.\n'
         + 'The full suite also includes error metrics (RMSE and MAE).'); } },
   { slide: 8, run() { leaveAblation(); buildQRow(); setCfg(0); deckStack(750, 805, .22); qShow(0); $('#rtime').classList.add('in');
       capWidth('560px'); caption('Typhoon Ragasa, 21 September 2025. Left: IMERG, the reference.');
       foot('A test case, 07:00 to 12:30 UTC.'); } },
-  { slide: 8, run() { qShow(1); $('#deck').style.opacity = 0; caption('All variables: the eyewall and rain bands come through.'); } },
-  { slide: 8, run() { qShow(2); caption('Without terrain: the structure mostly holds.'); } },
-  { slide: 8, run() { qShow(3); caption('Infrared only: the typhoon’s structure falls apart.'); } },
+  { slide: 8, run() { qShow(1); $('#deck').style.opacity = 0; caption('All variables: the model reproduces the eyewall and the rain bands.'); } },
+  { slide: 8, run() { qShow(2); caption('Without terrain: the model keeps most of the structure.'); } },
+  { slide: 8, run() { qShow(3); caption('Infrared only: the model loses the typhoon’s structure.'); } },
   { slide: 8, run() { qZoom(Q_ZOOM); caption('A closer look: the eyewall and spiral rain bands.'); } },
   { slide: 9, run() { capWidth(''); qZoom(1, [0]); qBox(true); qCompact(true); buildCharts(); $('#clab').classList.add('in'); showCol(1);
       caption('Average scores over 12,759 test scenes from 2025, with all variables.');
       foot('Higher is better for all three metrics. Percentages are the change from all variables. CSI and FSS are averaged over several thresholds.'); } },
   { slide: 9, run() { showCol(2); caption('Without terrain, every score drops.'); } },
-  { slide: 9, run() { showCol(3); caption('With infrared only, the largest drop: event detection (CSI) falls by about half.'); } },
+  { slide: 9, run() { showCol(3); caption('With infrared only, event detection (CSI) drops by about half.'); } },
   { slide: 10, run() { document.querySelectorAll('.ccol,.caxis').forEach(e => { e.style.opacity = 0; });
       buildThr(); $('#thr').classList.add('in'); drawCfg(2);
       caption('Infrared only is lowest at every threshold.');
       foot('CSI and FSS at each threshold, in mm/h. FSS uses 80 × 80 km neighborhoods.'); } },
-  { slide: 10, run() { drawCfg(1); caption('Without terrain: higher, but still below all variables.'); } },
+  { slide: 10, run() { drawCfg(1); caption('Without terrain: higher than infrared only, but lower than all variables.'); } },
   { slide: 10, run() { drawCfg(0); $('#thr').classList.add('best'); document.querySelectorAll('#thr .call').forEach(c => c.classList.add('on'));
-      caption('All variables: best at every threshold.'); } },
+      caption('The callouts mark the largest gaps.'); } },
   { slide: 11, run() { $('#thr').classList.remove('in'); $('#rtime').classList.remove('in'); document.querySelectorAll('#qrow > *').forEach(e => e.classList.remove('in')); qBox(false);
       chainReturn(); takeaway(0); caption(''); foot(''); } },
   { slide: 11, run() { takeaway(1); } },
